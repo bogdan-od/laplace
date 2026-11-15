@@ -1,0 +1,33 @@
+<!doctype html>
+<meta charset="utf-8">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 16 16%27%3E%3Crect width=%2716%27 height=%2716%27 rx=%273%27 fill=%27%23222%27/%3E%3Cpath d=%27M3 5l4 3-4 3M8 12h5%27 stroke=%27%2380e080%27 stroke-width=%271.6%27 fill=%27none%27/%3E%3C/svg%3E">
+<title>Топологія мережі: Linux у браузері</title>
+<link rel="stylesheet" href="../vendor/xterm.css">
+<style>
+    body { background: #111; color: #ccc; font-family: sans-serif; margin: 20px; }
+    h1 { font-size: 18px; margin: 0 0 10px; }
+    #err { color: #f77; font-weight: bold; min-height: 1em; }
+    #note { font-size: 13px; color: #999; min-height: 1em; margin: 6px 0; }
+    #problems { color: #f77; margin: 0 0 10px; }
+    #diagram { overflow-x: auto; margin-bottom: 14px; }
+    #machines { display: flex; flex-wrap: wrap; gap: 14px; }
+    .machine { font-size: 13px; }
+    button { background: #234; color: #cde; border: 1px solid #456; padding: 4px 10px; cursor: pointer; margin-top: 4px; }
+</style>
+<h1 id="title"></h1>
+<div id="bar"></div>
+<div id="err"></div>
+<div id="room_buttons" hidden>
+    <button id="problem">У мене не працює</button>
+    <button id="submit">Здати</button>
+</div>
+<div id="note"></div>
+<div id="task"></div>
+<ul id="problems"></ul>
+<div id="uplink"></div>
+<div id="phase"></div>
+<button id="save_task">Зберегти завдання</button>
+<div id="diagram"></div>
+<div id="machines"></div>
+<script src="../vendor/xterm.js"></script>
+<script type="module" src="ui/topology.mjs"></script>

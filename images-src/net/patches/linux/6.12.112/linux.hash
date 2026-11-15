@@ -1,0 +1,2 @@
+# Hash from Buildroot 2026.08.1 (linux/before-6.17/linux.hash): that file is not a symlink for 6.12.112, so Buildroot does not find it
+sha256  164dc9d1f6c93c61a15e1f071c48379b467f2b17c469cce7223471968208ed03  linux-6.12.112.tar.xz

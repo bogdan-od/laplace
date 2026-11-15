@@ -1,0 +1,30 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Bogdan <189150777+bogdan-od@users.noreply.github.com>
+Subject: [PATCH 06/10] 9p: restore fids as a sparse array
+
+fids is indexed by the numbers the guest assigns, and a Twalk with a failed
+nwfid leaves a hole. JSON writes a hole as null, and restoring the state failed
+on null[0]. Keep holes as holes.
+---
+ lib/9p.js | 7 +++++--
+ 1 file changed, 5 insertions(+), 2 deletions(-)
+
+diff --git a/lib/9p.js b/lib/9p.js
+index 246e1084..208abb62 100644
+--- a/lib/9p.js
++++ b/lib/9p.js
+@@ -228,9 +228,12 @@ Virtio9p.prototype.set_state = function(state)
+     this.msize = state[5];
+     this.replybuffer = state[6];
+     this.replybuffersize = state[7];
+-    this.fids = state[8].map(function(f)
++    // v86-replay: fids is a sparse array indexed by the numbers the guest assigns (a Twalk with a failed nwfid leaves a hole).
++    // JSON writes a hole as null; it must stay a hole instead of failing on null[0].
++    this.fids = [];
++    state[8].forEach((f, fid) =>
+     {
+-        return { inodeid: f[0], type: f[1], uid: f[2], dbg_name: f[3] };
++        if(f) this.fids[fid] = { inodeid: f[0], type: f[1], uid: f[2], dbg_name: f[3] };
+     });
+     this.fs.set_state(state[9]);
+ };

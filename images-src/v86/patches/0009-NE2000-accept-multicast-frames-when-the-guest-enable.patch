@@ -1,0 +1,30 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Bogdan <189150777+bogdan-od@users.noreply.github.com>
+Subject: [PATCH 09/10] NE2000: accept multicast frames when the guest enables
+ them in RCR
+
+The multicast branch ended in a return marked XXX, so a guest that was not in
+promiscuous mode saw neither IPv6 neighbour discovery nor OSPF and RIP hellos.
+The guest never writes the MAR registers (they stay 0xFF), so the hash filter
+of the 8390 would accept every group anyway.
+---
+ src/ne2k.js | 6 +++---
+ 1 file changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/src/ne2k.js b/src/ne2k.js
+index 4fdf9da4..fd3f4b7a 100644
+--- a/src/ne2k.js
++++ b/src/ne2k.js
+@@ -1273,9 +1273,9 @@ Ne2k.prototype.receive = function(data)
+     }
+     else if((this.rxcr & 8) && (data[0] & 1) === 1)
+     {
+-        // multicast
+-        // XXX
+-        return;
++        // multicast: accepted. The guest never writes MAR (it stays all 0xFF), so the 8390
++        // hash filter would accept every group anyway. Upstream dropped these frames, which
++        // broke IPv6 neighbour discovery and OSPF/RIP hellos without promiscuous mode.
+     }
+     else if(data[0] === this.mac[0] && data[1] === this.mac[1] &&
+             data[2] === this.mac[2] && data[3] === this.mac[3] &&

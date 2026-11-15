@@ -1,0 +1,44 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Bogdan <189150777+bogdan-od@users.noreply.github.com>
+Subject: [PATCH 03/10] Keep rdtsc extrapolation state out of snapshot save and
+ restore
+
+Reading the counter for set_tsc and store_current_tsc updated the state that
+extrapolates later rdtsc results. Taking or restoring a snapshot therefore
+changed what the guest read afterwards, and a replay differed between runs with
+and without snapshots. Use a read that does not touch that state in those two
+places.
+---
+ src/rust/cpu/cpu.rs | 9 +++++++--
+ 1 file changed, 7 insertions(+), 2 deletions(-)
+
+diff --git a/src/rust/cpu/cpu.rs b/src/rust/cpu/cpu.rs
+index 7b039753..dd59c89e 100644
+--- a/src/rust/cpu/cpu.rs
++++ b/src/rust/cpu/cpu.rs
+@@ -4356,10 +4356,15 @@ pub unsafe fn decr_ecx_asize(is_asize_32: bool) -> i32 {
+ #[no_mangle]
+ pub unsafe fn set_tsc(low: u32, high: u32) {
+     let new_value = low as u64 | (high as u64) << 32;
+-    let current_value = read_tsc();
++    let current_value = tsc_without_state_update();
+     tsc_offset = current_value - new_value;
+ }
+ 
++// Reading the counter must not touch the extrapolation state below: taking or restoring a
++// snapshot would otherwise change what later rdtsc calls return, and the replay would differ
++// between runs with and without snapshots.
++unsafe fn tsc_without_state_update() -> u64 { (js::microtick() * TSC_RATE) as u64 - tsc_offset }
++
+ #[no_mangle]
+ pub unsafe fn read_tsc() -> u64 {
+     let value = (js::microtick() * TSC_RATE) as u64 - tsc_offset;
+@@ -4567,7 +4572,7 @@ pub unsafe fn trigger_ss(code: i32) {
+ }
+ 
+ #[no_mangle]
+-pub unsafe fn store_current_tsc() { *current_tsc = read_tsc(); }
++pub unsafe fn store_current_tsc() { *current_tsc = tsc_without_state_update(); }
+ 
+ #[no_mangle]
+ pub unsafe fn handle_irqs() {

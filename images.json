@@ -1,0 +1,64 @@
+{
+  "tag": "images-v1",
+  "repository": "bogdan-od/laplace",
+  "archives": [
+    {
+      "name": "common.tar.gz",
+      "profile": "common",
+      "size": 413744,
+      "unpacked": 2010652,
+      "sha256": "7232d28484d0d76f44112fd8c923a3d912ea70187ae5a20579b4d38ee4b4a0d3",
+      "provides": [
+        "v86.wasm",
+        "seabios.bin",
+        "vgabios.bin"
+      ]
+    },
+    {
+      "name": "buildroot.tar.gz",
+      "profile": "buildroot",
+      "size": 31632512,
+      "unpacked": 31751789,
+      "sha256": "fcd4fae8976ae261c3dc6bafd0be4b4e6ed52ea0ae4815fb22f07f83b6ef04fc",
+      "provides": [
+        "buildroot-bzimage68.bin",
+        "buildroot-boot.snap"
+      ]
+    },
+    {
+      "name": "net.tar.gz",
+      "profile": "net",
+      "size": 19579457,
+      "unpacked": 19676137,
+      "sha256": "d61754041064172b617fa03d5f76a498bb15587067830b880263120423393a41",
+      "provides": [
+        "net-bzimage.bin",
+        "net-boot.snap"
+      ]
+    },
+    {
+      "name": "alpine.tar.gz",
+      "profile": "alpine",
+      "size": 166803486,
+      "unpacked": 167483438,
+      "sha256": "65da851f46d2fda96984e5df30a2596080c3028ee5e3b51229a24812b8a50555",
+      "provides": [
+        "alpine-fs.json",
+        "alpine-rootfs-flat",
+        "alpine-boot.snap"
+      ]
+    },
+    {
+      "name": "study.tar.gz",
+      "profile": "study",
+      "size": 210714788,
+      "unpacked": 211608911,
+      "sha256": "ba57b0278484e95bb953a2d3ed1eaed1b5314f2661a3a8fb26cf9f8850023589",
+      "provides": [
+        "study-fs.json",
+        "study-rootfs-flat",
+        "study-boot.snap"
+      ]
+    }
+  ]
+}

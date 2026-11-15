@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="uk">
+<meta charset="utf-8">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 16 16%27%3E%3Crect width=%2716%27 height=%2716%27 rx=%273%27 fill=%27%23222%27/%3E%3Cpath d=%27M3 5l4 3-4 3M8 12h5%27 stroke=%27%2380e080%27 stroke-width=%271.6%27 fill=%27none%27/%3E%3C/svg%3E">
+<title>Machine test</title>
+<script type="module">
+import { Machine } from "../../machine/machine.mjs";
+import { read_journal } from "../../core/journal.mjs";
+
+const dec = new TextDecoder();
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+const h = window.h = { out: "", errors: [], ends: 0, resets: 0, m: null, session: null };
+
+const load = async path => read_journal(await (await fetch(path)).json());
+
+function wire(m) {
+    m.on("serial", data => { h.out += dec.decode(data, { stream: true }); });
+    m.on("reset", () => { h.out = ""; h.resets++; });
+    m.on("end", () => { h.ends++; });
+    m.on("error", message => h.errors.push(message));
+}
+
+async function open(journal, options) {
+    h.m?.stop();
+    h.out = ""; h.errors = []; h.ends = 0; h.resets = 0;
+    const m = new Machine({ profile: "buildroot", root: "../../../", journal, name: "test", ...options });
+    h.m = m;
+    wire(m);
+    await m.start();
+    return m;
+}
+
+async function until(done, ms) {
+    const began = performance.now();
+    while(!done()) {
+        if(h.errors.length) throw new Error(`machine error: ${h.errors[0]}`);
+        if(performance.now() - began > ms) throw new Error("timeout");
+        await sleep(20);
+    }
+    return Math.round(performance.now() - began);
+}
+
+const step = fn => async () => {
+    try { return await fn(); }
+    catch(e) { return { ok: false, error: e.message, errors: h.errors }; }
+};
+
+h.step1 = step(async () => {
+    const began = performance.now();
+    const journal = await load("../out/br1.json");
+    const m = await open(journal, { on_journal_end: "pause" });
+    m.set_speed(0); m.resume();
+    await until(() => h.ends > 0, 120000);
+    const od = h.out.includes("0000000 ");
+    return { ok: od && !h.errors.length, od, end_vtime: m.status.vtime, ms: Math.round(performance.now() - began) };
+});
+
+h.step2 = step(async () => {
+    const began = performance.now();
+    const m = h.m;
+    const resets = h.resets;
+    // The boot snapshot is taken after the guest setup (about 6 s of guest time), so the target is relative to it.
+    const target = m.snapshots[0].vtime + 5000;
+    await m.seek(target);
+    const vtime = m.status.vtime;
+    const reset = h.resets > resets;
+    m.set_speed(0); m.resume();
+    const ends = h.ends;
+    await until(() => h.ends > ends, 120000);
+    // seek stops at the first slice boundary at or after the target; a halted
+    // CPU sleeps to its next timer in one slice, so it may overshoot by ~1 s.
+    const in_range = vtime >= target && vtime < target + 3000;
+    return { ok: reset && in_range && !h.errors.length, reset, vtime, ms: Math.round(performance.now() - began) };
+});
+
+h.step3 = step(async () => {
+    const began = performance.now();
+    const m = await open(null, { on_journal_end: "live", name: "student" });
+    m.resume();
+    m.type("echo hello\n");
+    await until(() => /\nhello/.test(h.out), 30000);
+    await m.check();
+    const { header, events } = await m.journal();
+    const kinds = new Set(events.map(e => e.t));
+    h.session = { header, events };
+    const ok = header.format === "v86-replay/9" && kinds.has("serial") && kinds.has("check") && !h.errors.length;
+    return { ok, format: header.format, kinds: [...kinds], events: events.length, ms: Math.round(performance.now() - began) };
+});
+
+h.step4 = step(async () => {
+    const began = performance.now();
+    await open(h.session, { on_journal_end: "pause" });
+    h.m.set_speed(0); h.m.resume();
+    await until(() => h.ends > 0, 120000);
+    return { ok: !h.errors.length, ms: Math.round(performance.now() - began) };
+});
+
+h.step5 = step(async () => {
+    const began = performance.now();
+    const journal = await load("../out/br1.json");
+    h.stage = "open";
+    const m = await open(journal, { on_journal_end: "pause", snap_every_ms: 1000, MAX_SNAPSHOTS: 4 });
+    h.stage = "run1";
+    m.set_speed(0); m.resume();
+    await until(() => h.ends > 0, 120000);
+    const snaps_at_end = m.snapshots.length;
+    const ends = h.ends;
+    h.stage = "seek " + JSON.stringify(m.snapshots);
+    await m.seek(3000);
+    h.stage = "run2";
+    const vtime = m.status.vtime;
+    m.set_speed(0); m.resume();
+    await until(() => h.ends > ends, 120000);
+    const ok = !h.errors.length && snaps_at_end <= 4 && vtime >= 3000;
+    return { ok, snaps: snaps_at_end, vtime, ms: Math.round(performance.now() - began) };
+});
+</script>
+<pre id="out"></pre>

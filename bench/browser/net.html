@@ -1,0 +1,112 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>network bench</title>
+<script type="module">
+// ?mode=one                  two net machines in one tab, frames through a Switch (as a topology in the product)
+// ?mode=two&role=a|b&room=X  one machine per tab, frames through Room (WebSocket signalling) and Mesh (WebRTC)
+// The result is POSTed (no-cors) to the collector ?collector=http://127.0.0.1:PORT/
+import { Machine } from "../../app/machine/machine.mjs";
+import { Switch } from "../../app/net/switch.mjs";
+import { Router } from "../../app/net/router.mjs";
+import { Room, number_of } from "../../app/net/room.mjs";
+import { Mesh } from "../../app/net/mesh.mjs";
+import { net_setup_command } from "../../app/profiles.mjs";
+
+const q = new URLSearchParams(location.search);
+const ROOT_URL = "../../";
+const mode = q.get("mode");
+const collector = q.get("collector");
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+const dec = new TextDecoder();
+const post = body => fetch(collector, { method: "POST", mode: "no-cors", body: JSON.stringify(body) });
+const PROMPT = "~% ";
+const BYTES = 1 << 20;
+const RUNS = 3;
+
+async function open_machine(name) {
+    const m = new Machine({ profile: "net", root: ROOT_URL, on_journal_end: "live", snap_every_ms: 15000, check_every_ms: 10000, name });
+    const box = { m, text: "", errors: [] };
+    m.on("serial", d => { box.text += dec.decode(d, { stream: true }); });
+    m.on("error", e => box.errors.push(e));
+    box.wait = async (done, limit_ms, what) => {
+        const t0 = performance.now();
+        while(!done()) {
+            if(box.errors.length) throw new Error(box.errors[0]);
+            if(performance.now() - t0 > limit_ms) throw new Error("timeout " + what + " tail=" + JSON.stringify(box.text.slice(-200)));
+            await sleep(5);
+        }
+    };
+    box.at_prompt = () => box.text.endsWith(PROMPT);
+    box.run = async (cmd, limit_ms = 300000) => {
+        const from = box.text.length;
+        const marker = "M" + Math.random().toString(36).slice(2, 8);
+        const sent = Date.now();
+        m.type(`${cmd}; echo ${marker}\n`);
+        const re = new RegExp(`\\n${marker}\\r?\\n`);
+        await box.wait(() => re.test(box.text.slice(from)), limit_ms, cmd);
+        const done = Date.now();
+        await box.wait(() => box.at_prompt(), limit_ms, "prompt");
+        return { ms: done - sent, out: box.text.slice(from).replace(/\r/g, "") };
+    };
+    await m.start();
+    m.resume();
+    m.type("\n");
+    await box.wait(box.at_prompt, 180000, "first prompt");
+    return box;
+}
+
+async function setup(box, n) {
+    await box.run(net_setup_command(n).trim());
+    await sleep(500);
+}
+
+async function sender(box, peer) {
+    const target = `10.0.0.${peer}`;
+    for(let i = 0; i < 60; i++) { const r = await box.run(`ping -c 1 -W 2 ${target} >/dev/null 2>&1 && echo UP || echo DOWN`); if(r.out.includes("\nUP")) break; await sleep(1000); }
+    const ping = await box.run(`ping -c 20 ${target}`);
+    const m = /min\/avg\/max = ([\d.]+)\/([\d.]+)\/([\d.]+)/.exec(ping.out);
+    const result = { ping: m ? { min_ms: +m[1], avg_ms: +m[2], max_ms: +m[3] } : null, ping_loss: /(\d+)% packet loss/.exec(ping.out)?.[1] ?? null, ping_wall_ms: ping.ms, tcp: [] };
+    for(let i = 1; i <= RUNS; i++) {
+        await sleep(4000);
+        const t = await box.run(`head -c ${BYTES} /dev/zero | nc ${target} 5000; echo rc=$?`);
+        result.tcp.push({ run: i, host_ms: t.ms, kb_per_s: Math.round(BYTES / 1024 / (t.ms / 1000)), rc: /rc=(\d+)/.exec(t.out)?.[1] });
+    }
+    return result;
+}
+
+async function receiver(box) {
+    const cmd = `for i in 1 2 3; do rm -f /tmp/r$i; (sleep 900 | nc -l -p 5000 | wc -c > /tmp/r$i) & while [ ! -s /tmp/r$i ]; do sleep 1; done; echo GOT_$i=$(cat /tmp/r$i); done`;
+    const r = await box.run(cmd, 900000);
+    return { got: [...r.out.matchAll(/GOT_(\d)=(\d+)/g)].map(m => [m[1], m[2]]) };
+}
+
+try {
+    if(mode === "one") {
+        const sw = new Switch();
+        const boxes = await Promise.all([open_machine("a"), open_machine("b")]);
+        boxes.forEach((box, i) => {
+            const port = sw.add_port(frame => box.m.net_in(frame));
+            box.m.on("net_out", frame => port.receive(frame));
+        });
+        await setup(boxes[0], 1); await setup(boxes[1], 2);
+        const [s, r] = await Promise.all([sender(boxes[0], 2), receiver(boxes[1])]);
+        await post({ mode, ...s, ...r, errors: boxes.flatMap(b => b.errors) });
+    }
+    else {
+        const role = q.get("role");
+        const box = await open_machine(role);
+        const router = new Router(box.m);
+        const room = new Room({ room: q.get("room"), role: "student", name: role });
+        await room.connect();
+        const mesh = new Mesh(room, box.m);
+        router.attach_mesh(mesh);
+        const n = number_of(room.id);
+        await setup(box, n);
+        await post({ mode, role, progress: "setup done", n, ice: q.get("stun") });
+        const out = role === "a" ? await sender(box, 3 - n) : await receiver(box);
+        await post({ mode, role, n, peers: mesh.peer_count, server_links: mesh.server_count, ...out, errors: box.errors });
+    }
+}
+catch(e) { await post({ mode, role: q.get("role"), error: String(e.message ?? e) }); }
+document.title = "finished";
+</script>

@@ -1,0 +1,45 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Bogdan <189150777+bogdan-od@users.noreply.github.com>
+Subject: [PATCH 02/10] Replace NaN results of x87 transcendental functions
+ with real indefinite
+
+sin, log, atan2 and the like are computed with native wasm f64, so the NaN bits
+depend on the host CPU and then go into the F80 register state. Replace any NaN
+from these functions with the x87 "real indefinite" value, as the CPU produces
+it.
+---
+ src/rust/softfloat.rs | 14 +++++++++++++-
+ 1 file changed, 13 insertions(+), 1 deletion(-)
+
+diff --git a/src/rust/softfloat.rs b/src/rust/softfloat.rs
+index 6c1a4dff..17a8bdaa 100644
+--- a/src/rust/softfloat.rs
++++ b/src/rust/softfloat.rs
+@@ -74,6 +74,11 @@ impl F80 {
+         mantissa: 0xB8AA3B295C17F000,
+         sign_exponent: 0x3FFF,
+     };
++    // x87 "real indefinite" with the sign bit set, as the CPU produces it (INDEFINITE_NAN below has sign 0).
++    pub const REAL_INDEFINITE: F80 = F80 {
++        mantissa: 0xC000000000000000,
++        sign_exponent: 0xFFFF,
++    };
+     pub const INDEFINITE_NAN: F80 = F80 {
+         mantissa: 0xC000000000000000,
+         sign_exponent: 0x7FFF,
+@@ -112,7 +117,14 @@ impl F80 {
+         unsafe { f64_to_extF80M(src, &mut x) };
+         x
+     }
+-    fn of_f64x(src: f64) -> F80 { F80::of_f64(f64::to_bits(src)) }
++    // sin/log/atan2 and the like are computed with native wasm f64: the NaN bits depend on the host CPU (see sse_nan_f32),
++    // and the F80 goes into the state. So any NaN is replaced by the x87 "real indefinite".
++    fn of_f64x(src: f64) -> F80 {
++        if src.is_nan() {
++            return F80::REAL_INDEFINITE;
++        }
++        F80::of_f64(f64::to_bits(src))
++    }
+ 
+     pub fn to_f32(&self) -> i32 { unsafe { extF80M_to_f32(self) } }
+     pub fn to_f64(&self) -> u64 { unsafe { extF80M_to_f64(self) } }

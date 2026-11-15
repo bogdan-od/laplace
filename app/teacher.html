@@ -1,0 +1,62 @@
+<!doctype html>
+<meta charset="utf-8">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 16 16%27%3E%3Crect width=%2716%27 height=%2716%27 rx=%273%27 fill=%27%23222%27/%3E%3Cpath d=%27M3 5l4 3-4 3M8 12h5%27 stroke=%27%2380e080%27 stroke-width=%271.6%27 fill=%27none%27/%3E%3C/svg%3E">
+<title>Викладач: лабораторна</title>
+<link rel="stylesheet" href="../vendor/xterm.css">
+<style>
+    body { background: #111; color: #ccc; font-family: sans-serif; margin: 20px; }
+    button { background: #234; color: #cde; border: 1px solid #456; padding: 4px 10px; cursor: pointer; }
+    #login_room, #link { background: #1a1a1a; color: #cde; border: 1px solid #456; padding: 4px; }
+    #err { color: #f77; font-weight: bold; min-height: 1em; }
+    #body { display: flex; gap: 20px; align-items: flex-start; }
+    #grid { display: flex; flex-wrap: wrap; gap: 10px; flex: 1; }
+    .tile { border: 2px solid #333; padding: 4px; background: #000; cursor: pointer; }
+    .tile.alert { border-color: #e33; }
+    .tile.gone { filter: grayscale(1); opacity: .5; }
+    .label { font-size: 13px; color: #cde; margin-bottom: 2px; }
+    #side { width: 320px; flex: none; }
+    #side h3 { margin: 14px 0 6px; font-size: 16px; }
+    #reports, #submits { list-style: none; padding: 0; margin: 0; font-size: 14px; }
+    #reports li, #submits li { padding: 3px 0; }
+    #reports a, #submits a { color: #9cf; }
+    #task_status { color: #9c9; font-size: 14px; min-height: 1em; margin-top: 6px; }
+    #hint { margin-top: 20px; font-size: 14px; display: flex; gap: 8px; align-items: center; }
+    #link { width: 560px; }
+    #big { position: fixed; inset: 0; background: rgba(0, 0, 0, .9); padding: 20px; box-sizing: border-box; }
+    #big_head { display: flex; gap: 14px; align-items: center; margin-bottom: 8px; font-size: 16px; }
+    #big_title { color: #9c9; font-weight: bold; }
+</style>
+<div id="err"></div>
+<div id="login">
+    <input type="text" id="login_room" placeholder="Назва кімнати">
+    <button id="login_button">Увійти</button>
+</div>
+<div id="room_view" hidden>
+    <div id="body">
+        <div id="grid"></div>
+        <aside id="side">
+            <h3>Не працює</h3>
+            <ul id="reports"></ul>
+            <h3>Здані</h3>
+            <ul id="submits"></ul>
+            <h3>Завдання</h3>
+            <input type="file" id="task_file" accept=".json,application/json">
+            <button id="task_send">Роздати</button>
+            <div id="task_status"></div>
+        </aside>
+    </div>
+    <div id="hint">
+        <span>Посилання для студентів:</span>
+        <input id="link" readonly>
+        <button id="copy">Копіювати</button>
+    </div>
+</div>
+<div id="big" hidden>
+    <div id="big_head">
+        <span id="big_title"></span>
+        <button id="big_close">Закрити</button>
+    </div>
+    <div id="big_term"></div>
+</div>
+<script src="../vendor/xterm.js"></script>
+<script type="module" src="ui/teacher.mjs"></script>

@@ -1,0 +1,41 @@
+<!doctype html>
+<meta charset="utf-8">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 16 16%27%3E%3Crect width=%2716%27 height=%2716%27 rx=%273%27 fill=%27%23222%27/%3E%3Cpath d=%27M3 5l4 3-4 3M8 12h5%27 stroke=%27%2380e080%27 stroke-width=%271.6%27 fill=%27none%27/%3E%3C/svg%3E">
+<title>Лабораторна: Linux у браузері</title>
+<link rel="stylesheet" href="../vendor/xterm.css">
+<style>
+    body { background: #111; color: #ccc; font-family: sans-serif; margin: 20px; }
+    #bar { display: flex; gap: 14px; align-items: center; margin-bottom: 8px; font-size: 14px; flex-wrap: wrap; }
+    button { background: #234; color: #cde; border: 1px solid #456; padding: 4px 10px; cursor: pointer; }
+    #banner { color: #9c9; font-weight: bold; }
+    #err { color: #f77; font-weight: bold; min-height: 1em; }
+    #note { font-size: 13px; color: #999; min-height: 1em; margin: 6px 0; }
+    #terminal { width: 1000px; }
+    #rollback_list { list-style: none; margin: 0 0 8px; padding: 0; max-height: 220px; overflow-y: auto; width: 1000px; border: 1px solid #456; font-family: monospace; font-size: 13px; }
+    #rollback_list li { padding: 3px 8px; cursor: pointer; }
+    #rollback_list li:hover { background: #234; }
+    #share { display: flex; gap: 8px; align-items: center; margin-top: 8px; }
+    #link { background: #1a1a1a; color: #cde; border: 1px solid #456; padding: 4px; width: 720px; }
+</style>
+<div id="bar">
+    <span>Режим: <b id="mode">-</b></span>
+    <span>час гостя <b id="vt">0.0</b> с</span>
+    <span>подій у журналі: <b id="total">0</b></span>
+    <button id="save">Зберегти журнал</button>
+    <button id="problem">У мене не працює</button>
+    <button id="submit">Здати</button>
+    <button id="rollback" disabled>Відкотити</button>
+    <span>Мережа: <b id="net">-</b></span>
+    <span id="banner"></span>
+</div>
+<div id="err"></div>
+<div id="note"></div>
+<div id="task"></div>
+<ul id="rollback_list" hidden></ul>
+<div id="terminal"></div>
+<div id="share" hidden>
+    <input id="link" readonly>
+    <button id="copy">Копіювати</button>
+</div>
+<script src="../vendor/xterm.js"></script>
+<script type="module" src="ui/lab.mjs"></script>

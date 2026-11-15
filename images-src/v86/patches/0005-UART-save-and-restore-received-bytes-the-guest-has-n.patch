@@ -1,0 +1,32 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Bogdan <189150777+bogdan-od@users.noreply.github.com>
+Subject: [PATCH 05/10] UART: save and restore received bytes the guest has not
+ read yet
+
+The input queue was not part of the UART state. After restoring a snapshot the
+line status register said "data ready" while there was nothing to read.
+---
+ src/uart.js | 3 +++
+ 1 file changed, 3 insertions(+)
+
+diff --git a/src/uart.js b/src/uart.js
+index 275dfe50..b85fd6a7 100644
+--- a/src/uart.js
++++ b/src/uart.js
+@@ -310,6 +310,8 @@ UART.prototype.get_state = function()
+     state[8] = this.modem_status;
+     state[9] = this.scratch_register;
+     state[10] = this.irq;
++    // Received bytes the guest has not read yet: without them lsr says "data ready" with nothing to read.
++    state[11] = this.input.slice();
+ 
+     return state;
+ };
+@@ -327,6 +329,7 @@ UART.prototype.set_state = function(state)
+     this.modem_status = state[8];
+     this.scratch_register = state[9];
+     this.irq = state[10];
++    this.input = state[11] ? state[11].slice() : [];
+ };
+ 
+ UART.prototype.CheckInterrupt = function()

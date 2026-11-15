@@ -1,0 +1,198 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>bench page</title>
+<script type="module">
+// Benchmark page: takes jobs from the orchestrator (GET /bench/next), runs them and sends the result (POST /bench/result).
+import { Machine } from "../../app/machine/machine.mjs";
+import { read_journal, commands } from "../../app/core/journal.mjs";
+import { PROFILES } from "../../app/profiles.mjs";
+
+const ROOT_URL = "../../";
+const params = new URLSearchParams(location.search);
+const tab = params.get("tab") ?? "0";
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+const post = body => fetch("/bench/result", { method: "POST", body: JSON.stringify({ tab, ...body }) });
+
+async function replay_job(job) {
+    const journal = read_journal(await (await fetch("/" + job.path)).json());
+    const m = new Machine({ journal, root: ROOT_URL, on_journal_end: "pause", name: "bench" });
+    let error = null, ended = null;
+    m.on("error", message => { error = message; });
+    m.on("end", info => { ended = info; });
+    const t0 = performance.now();
+    try {
+        await m.start();
+        const started_ms = performance.now() - t0;
+        m.set_speed(0); m.resume();
+        while(!ended && !error) await sleep(10);
+        const wall_ms = performance.now() - t0;
+        return { ok: !error && !!ended, error, wall_ms: Math.round(wall_ms), started_ms: Math.round(started_ms), end: ended, status: m.status };
+    }
+    catch(e) { return { ok: false, error: String(e.message ?? e), wall_ms: Math.round(performance.now() - t0) }; }
+    finally { m.stop(); }
+}
+
+const dec = new TextDecoder();
+const sample = async label => (await fetch(`/bench/sample?label=${encodeURIComponent(label)}`)).json();
+const uamem = async () => {
+    if(!performance.measureUserAgentSpecificMemory || !crossOriginIsolated) return null;
+    try { const r = await performance.measureUserAgentSpecificMemory(); return { bytes: r.bytes, breakdown: r.breakdown.filter(b => b.bytes > 1e6).map(b => ({ bytes: b.bytes, types: b.types, urls: b.attribution.map(a => a.url).slice(0, 2) })) }; }
+    catch(e) { return { error: String(e) }; }
+};
+
+// A live machine as in the product: Machine (a Worker with the core), start from the boot snapshot,
+// snapshot and check parameters from attempt-session.ts.
+async function open_live(profile, name) {
+    const m = new Machine({ profile, root: ROOT_URL, on_journal_end: "live", snap_every_ms: 15000, check_every_ms: 10000, name, max_bytes: 256 << 20 });
+    const box = { text: "", errors: [], m };
+    m.on("serial", data => { box.text += dec.decode(data, { stream: true }); });
+    m.on("reset", () => { box.text = ""; });
+    m.on("error", message => box.errors.push(message));
+    const prompt = PROFILES[profile].prompt;
+    box.at_prompt = () => box.text.replace(/\x1b\[6n$/, "").endsWith(prompt);
+    box.wait = async (done, limit_ms, what) => {
+        const began = performance.now();
+        while(!done()) {
+            if(box.errors.length) throw new Error("machine error: " + box.errors[0]);
+            if(performance.now() - began > limit_ms) throw new Error("timeout: " + what + " tail=" + JSON.stringify(box.text.slice(-200)));
+            await sleep(5);
+        }
+        return performance.now();
+    };
+    return box;
+}
+
+async function boot_to_prompt(box) {
+    const t0 = performance.now();
+    await box.m.start();
+    const started = performance.now();
+    box.m.resume();
+    box.m.type("\n");
+    const prompted = await box.wait(box.at_prompt, 180000, "prompt");
+    return { t0, started_ms: Math.round(started - t0), prompt_ms: Math.round(prompted - t0) };
+}
+
+async function timed(box, cmd, seq, limit_ms = 600000) {
+    const from = box.text.length;
+    const sent = performance.now();
+    box.m.type(`${cmd}; echo DONE_${seq}\n`);
+    const re = new RegExp(`\nDONE_${seq}\r?\n`);
+    const seen = await box.wait(() => re.test(box.text.slice(from)), limit_ms, "DONE_" + seq);
+    await box.wait(() => box.at_prompt(), limit_ms, "prompt after " + seq);
+    return { ms: Math.round(seen - sent), out: box.text.slice(from).slice(-400) };
+}
+
+const T123 = [
+    ["T1", "i=0; while [ $i -lt 300000 ]; do i=$((i+1)); done"],
+    ["T2", "dd if=/dev/zero bs=1M count=64 2>/dev/null | md5sum"],
+    ["T3", "seq 1 200000 | sort -n | md5sum"],
+];
+const C_PROGRAM = "printf '#include <stdio.h>\\nint main(){puts(\"hi from gcc\");}\\n' > h.c && gcc h.c -o h && ./h";
+
+// B + I: time to the prompt, T1-T3 x3 (or the C build), guest clock against host clock.
+async function bench_job(job) {
+    const box = await open_live(job.profile, "bench");
+    const result = { profile: job.profile, errors: box.errors };
+    try {
+        const boot = await boot_to_prompt(box);
+        result.started_ms = boot.started_ms; result.prompt_ms = boot.prompt_ms;
+        let seq = 0;
+        result.runs = [];
+        if(job.tests !== false) for(const [name, cmd] of T123) for(let run = 1; run <= 3; run++) result.runs.push({ test: name, run, ...(await timed(box, cmd, ++seq)) });
+        if(job.c_program) for(let run = 1; run <= 3; run++) result.runs.push({ test: "C", run, ...(await timed(box, C_PROGRAM, ++seq)) });
+        if(job.clock) {
+            const read = async (label, cmd) => { const r = await timed(box, cmd, ++seq); return { label, host: performance.now(), out: r.out }; };
+            const one = await timed(box, "time sleep 1", ++seq);
+            result.time_sleep1 = { host_ms: one.ms, out: one.out };
+            const a = await read("before", "cat /proc/uptime; date +%s");
+            await sleep(job.idle_ms ?? 10000);
+            const b = await read("after", "cat /proc/uptime; date +%s");
+            result.clock = { before: a, after: b, host_ms_between: Math.round(b.host - a.host) };
+        }
+        result.final_status = box.m.status;
+    }
+    catch(e) { result.error = String(e.message ?? e); }
+    finally { box.m.stop(); }
+    return { ok: !result.error, ...result };
+}
+
+// C: open -> prompt, then a few commands and rollbacks to points (as the "Відкат" button: Machine.rollback).
+async function rollback_job(job) {
+    const box = await open_live(job.profile, "rb");
+    const result = { profile: job.profile, rollbacks: [] };
+    try {
+        const boot = await boot_to_prompt(box);
+        result.started_ms = boot.started_ms; result.prompt_ms = boot.prompt_ms;
+        let seq = 0;
+        for(const cmd of ["echo first", T123[0][1], T123[2][1], "echo last"]) await timed(box, cmd, ++seq);
+        await sleep(2000);
+        const journal = await box.m.journal();
+        const own = commands(journal.events).filter(c => c.by === "student" && c.port === 0);
+        result.events_before = journal.events.length;
+        result.session_vtime_ms = Math.round(box.m.status.vtime);
+        const points = [["last command", own.at(-1).start], ["third command", own[2].start], ["first command", own[0].start], ["start", 0]];
+        for(const [label, index] of points) {
+            const t0 = performance.now();
+            box.text = "";
+            await box.m.rollback(index);
+            const returned = performance.now();
+            box.m.type("\n");
+            await box.wait(box.at_prompt, 120000, "prompt after rollback");
+            const prompted = performance.now();
+            result.rollbacks.push({ label, index, call_ms: Math.round(returned - t0), prompt_ms: Math.round(prompted - t0) });
+            // after the rollback the machine is live again: check that a command runs
+            const check = await timed(box, "echo alive", ++seq, 60000);
+            result.rollbacks.at(-1).alive_ms = check.ms;
+        }
+    }
+    catch(e) { result.error = String(e.message ?? e); }
+    finally { box.m.stop(); }
+    return { ok: !result.error, ...result };
+}
+
+// D: the machine(s) wait at the prompt while the orchestrator measures the browser's RSS.
+async function hold_job(job) {
+    const boxes = [];
+    const result = { profile: job.profile, count: job.count ?? 1, samples: [] };
+    try {
+        if(job.count === 0) { await sleep(3000); result.samples.push(await sample("empty+3s")); await sleep(job.hold_ms ?? 5000); result.samples.push(await sample("empty+hold")); if(job.uamem) result.uamem = await uamem(); return { ok: true, ...result }; }
+        const boots = [];
+        const t0 = performance.now();
+        for(let i = 0; i < (job.count ?? 1); i++) {
+            const box = await open_live(job.profile, "m" + i);
+            boxes.push(box);
+            boots.push(boot_to_prompt(box));
+        }
+        await Promise.all(boots);
+        result.all_prompt_ms = Math.round(performance.now() - t0);
+        await sleep(3000);
+        result.samples.push(await sample("prompt+3s"));
+        if(job.uamem) result.uamem = await uamem();
+        await sleep(job.hold_ms ?? 60000);
+        result.samples.push(await sample("prompt+hold"));
+        result.snapshots = boxes.map(b => b.m.snapshots.length);
+        if(job.uamem) result.uamem_after = await uamem();
+        return { ok: !boxes.some(b => b.errors.length), errors: boxes.flatMap(b => b.errors), ...result };
+    }
+    catch(e) { return { ok: false, error: String(e.message ?? e), ...result }; }
+    finally { boxes.forEach(b => b.m.stop()); }
+}
+
+for(;;) {
+    const job = await (await fetch(`/bench/next?tab=${tab}`)).json();
+    if(job.kind === "done") break;
+    if(job.kind === "wait") { await sleep(200); continue; }
+    let result;
+    try {
+        if(job.kind === "replay") result = await replay_job(job);
+        else if(job.kind === "bench") result = await bench_job(job);
+        else if(job.kind === "hold") result = await hold_job(job);
+        else if(job.kind === "rollback") result = await rollback_job(job);
+        else result = { ok: false, error: "unknown job " + job.kind };
+    }
+    catch(e) { result = { ok: false, error: String(e?.stack ?? e) }; }
+    await post({ job, result });
+}
+await post({ finished: true });
+document.title = "finished";
+</script>

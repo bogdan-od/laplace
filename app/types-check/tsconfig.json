@@ -1,0 +1,16 @@
+{
+  "compilerOptions": {
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "exactOptionalPropertyTypes": false,
+    "module": "nodenext",
+    "moduleResolution": "nodenext",
+    "target": "es2023",
+    "lib": ["ES2023", "DOM"],
+    "types": [],
+    "noEmit": true,
+    "allowJs": false,
+    "skipLibCheck": false
+  },
+  "include": ["usage.mts"]
+}

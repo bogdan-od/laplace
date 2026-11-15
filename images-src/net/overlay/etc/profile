@@ -1,0 +1,6 @@
+# The "~% " prompt is what the v86 profile expects (app/profiles.mjs): \W in the home directory gives "~"
+PS1='\W% '
+HOME=/root
+export PATH=/usr/sbin:/usr/bin:/sbin:/bin PS1 HOME
+echo 0 > /proc/sys/kernel/printk
+cd ~

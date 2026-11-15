@@ -1,0 +1,49 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>bench page</title>
+<script type="module">
+// Benchmark page: takes jobs from the orchestrator (GET /bench/next), runs them and sends the result (POST /bench/result).
+import { Machine } from "../../app/machine/machine.mjs";
+import { read_journal } from "../../app/core/journal.mjs";
+import { PROFILES } from "../../app/profiles.mjs";
+
+const ROOT_URL = "../../";
+const params = new URLSearchParams(location.search);
+const tab = params.get("tab") ?? "0";
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+const post = body => fetch("/bench/result", { method: "POST", body: JSON.stringify({ tab, ...body }) });
+
+async function replay_job(job) {
+    const journal = read_journal(await (await fetch("/" + job.path)).json());
+    const m = new Machine({ journal, root: ROOT_URL, on_journal_end: "pause", name: "bench" });
+    let error = null, ended = null;
+    m.on("error", message => { error = message; });
+    m.on("end", info => { ended = info; });
+    const t0 = performance.now();
+    try {
+        await m.start();
+        const started_ms = performance.now() - t0;
+        m.set_speed(0); m.resume();
+        while(!ended && !error) await sleep(10);
+        const wall_ms = performance.now() - t0;
+        return { ok: !error && !!ended, error, wall_ms: Math.round(wall_ms), started_ms: Math.round(started_ms), end: ended, status: m.status };
+    }
+    catch(e) { return { ok: false, error: String(e.message ?? e), wall_ms: Math.round(performance.now() - t0) }; }
+    finally { m.stop(); }
+}
+
+for(;;) {
+    const job = await (await fetch(`/bench/next?tab=${tab}`)).json();
+    if(job.kind === "done") break;
+    if(job.kind === "wait") { await sleep(200); continue; }
+    let result;
+    try {
+        if(job.kind === "replay") result = await replay_job(job);
+        else result = { ok: false, error: "unknown job " + job.kind };
+    }
+    catch(e) { result = { ok: false, error: String(e?.stack ?? e) }; }
+    await post({ job, result });
+}
+await post({ finished: true });
+document.title = "finished";
+</script>

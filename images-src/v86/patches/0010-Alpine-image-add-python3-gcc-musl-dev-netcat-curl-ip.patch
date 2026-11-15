@@ -1,0 +1,23 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Bogdan <189150777+bogdan-od@users.noreply.github.com>
+Subject: [PATCH 10/10] Alpine image: add python3, gcc, musl-dev, netcat, curl,
+ iproute2, tcpdump, nano
+
+Packages for lab work in the guest, installed next to nodejs.
+---
+ tools/docker/alpine/Dockerfile | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/tools/docker/alpine/Dockerfile b/tools/docker/alpine/Dockerfile
+index 62b4c6df..76a14bec 100644
+--- a/tools/docker/alpine/Dockerfile
++++ b/tools/docker/alpine/Dockerfile
+@@ -1,7 +1,7 @@
+ FROM docker.io/i386/alpine:3.21.0
+ 
+ ENV KERNEL=virt
+-ENV ADDPKGS=nodejs
++ENV ADDPKGS="nodejs python3 gcc musl-dev netcat-openbsd curl iproute2 tcpdump nano"
+ 
+ RUN apk add openrc alpine-base agetty alpine-conf linux-$KERNEL linux-firmware-none $ADDPKGS
+ 

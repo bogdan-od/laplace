@@ -1,0 +1,19 @@
+node_modules/
+.build/
+/out/
+/images/
+dist/
+dist-ssr/
+*.log
+*.local
+.DS_Store
+.idea/
+.vscode/
+
+# server state
+/data/
+app/data/
+server/dist/
+server/dist-test/
+web/dist/
+app/test/out/

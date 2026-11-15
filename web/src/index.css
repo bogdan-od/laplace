@@ -1,0 +1,143 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+@import "@fontsource/fira-sans/400.css";
+@import "@fontsource/fira-sans/500.css";
+@import "@fontsource/fira-sans/600.css";
+@import "@fontsource/arsenal/400.css";
+@import "@fontsource/arsenal/700.css";
+@import "@fontsource/ibm-plex-mono/400.css";
+@import "@fontsource/ibm-plex-mono/500.css";
+
+/*
+ * Design tokens. Two levels: the raw palette (--p-*) and semantic names.
+ * Components use only semantic names (via Tailwind: bg-status-stuck,
+ * text-muted-foreground, font-mono); the palette is never referenced
+ * from components. Color means status; the accent is for actions only.
+ */
+:root {
+  --p-white: #ffffff;
+  --p-gray-25: #f8f9fa;
+  --p-gray-75: #eceef1;
+  --p-gray-50: #f1f3f5;
+  --p-gray-100: #d5dae0;
+  --p-gray-200: #c3cad1;
+  --p-gray-400: #8a939c;
+  --p-gray-500: #565f68;
+  --p-gray-700: #3a4148;
+  --p-gray-900: #171a1e;
+  --p-ink-950: #0e1013;
+  --p-ink-900: #15181c;
+  --p-ink-850: #1b1f24;
+  --p-ink-800: #242930;
+  --p-ink-700: #323840;
+  --p-ink-500: #6e7781;
+  --p-ink-300: #a9b1ba;
+  --p-ink-100: #e3e7eb;
+
+  --p-green-600: #1f7a3d;
+  --p-green-400: #46b265;
+  --p-red-600: #c42b2b;
+  --p-red-400: #f0605a;
+  --p-amber-600: #a56b00;
+  --p-amber-400: #d9a23a;
+  --p-teal-700: #0b6b63;
+  --p-blue-600: #2563c9;
+  --p-blue-400: #5aa0ff;
+
+  --background: var(--p-gray-75);
+  --foreground: var(--p-gray-900);
+  --card: var(--p-white);
+  --card-foreground: var(--p-gray-900);
+  --popover: var(--p-white);
+  --popover-foreground: var(--p-gray-900);
+  --primary: var(--p-teal-700);
+  --primary-foreground: var(--p-white);
+  --secondary: var(--p-gray-50);
+  --secondary-foreground: var(--p-gray-900);
+  --muted: var(--p-gray-50);
+  --muted-foreground: var(--p-gray-500);
+  --accent: var(--p-gray-50);
+  --accent-foreground: var(--p-gray-900);
+  --destructive: var(--p-red-600);
+  --border: var(--p-gray-100);
+  --input: var(--p-gray-200);
+  --ring: var(--p-gray-400);
+
+  --status-done: var(--p-green-600);
+  --status-stuck: var(--p-red-600);
+  --status-work: var(--p-amber-600);
+  --status-idle: var(--p-gray-400);
+
+  --terminal-bg: var(--p-ink-900);
+  --terminal-fg: var(--p-ink-100);
+
+  --radius: 0.25rem;
+  --font-ui: "Fira Sans", system-ui, sans-serif;
+  --font-display-face: "Arsenal", "Fira Sans", serif;
+}
+
+
+/* Monochrome: only statuses carry color. */
+.accent-ink {
+  --primary: var(--p-gray-900);
+  --primary-foreground: var(--p-white);
+}
+
+@theme inline {
+  --font-sans: var(--font-ui);
+  --font-mono: "IBM Plex Mono", ui-monospace, monospace;
+  --font-heading: var(--font-sans);
+  --font-display: var(--font-display-face);
+
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  --color-status-done: var(--status-done);
+  --color-status-stuck: var(--status-stuck);
+  --color-status-work: var(--status-work);
+  --color-status-idle: var(--status-idle);
+  --color-terminal: var(--terminal-bg);
+  --color-terminal-foreground: var(--terminal-fg);
+
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  html {
+    @apply font-sans;
+    font-size: 14px;
+  }
+  body {
+    @apply bg-background text-foreground antialiased;
+  }
+  /* Tailwind 4 resets buttons to the default arrow cursor; a clickable thing should look clickable. */
+  button:not(:disabled),
+  [role="button"],
+  a,
+  summary {
+    cursor: pointer;
+  }
+}

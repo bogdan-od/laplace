@@ -1,0 +1,46 @@
+{
+  "format": "v86-topology/1",
+  "title": "Роутер з NAT і виходом назовні",
+  "machines": [
+    {
+      "id": "pc1",
+      "title": "Клієнт",
+      "profile": "net",
+      "setup": "ifconfig eth0 hw ether {mac} 10.0.10.2 netmask 255.255.255.0 up; route add default gw 10.0.10.1\n"
+    },
+    {
+      "id": "r1",
+      "title": "Роутер",
+      "profile": "net",
+      "setup": "ip link set eth0 address {mac}; ip link set eth0 up; ip link add link eth0 name eth0.10 type vlan id 10; ip link add link eth0 name eth0.30 type vlan id 30; ip addr add 10.0.10.1/24 dev eth0.10; ip link set eth0.10 up; ip link set eth0.30 up; echo 1 > /proc/sys/net/ipv4/ip_forward; udhcpc -i eth0.30 -q -n -t 4 -T 3; iptables -t nat -A POSTROUTING -o eth0.30 -j MASQUERADE\n"
+    }
+  ],
+  "switches": [
+    {
+      "id": "sw1"
+    }
+  ],
+  "links": [
+    {
+      "machine": "pc1",
+      "switch": "sw1",
+      "mode": "access",
+      "vlan": 10
+    },
+    {
+      "machine": "r1",
+      "switch": "sw1",
+      "mode": "trunk",
+      "allowed": [
+        10,
+        30
+      ]
+    },
+    {
+      "uplink": "relay",
+      "switch": "sw1",
+      "mode": "access",
+      "vlan": 30
+    }
+  ]
+}

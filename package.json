@@ -1,0 +1,32 @@
+{
+  "name": "laplace",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Linux in the browser on the v86 emulator with deterministic recording and replay of sessions",
+  "license": "AGPL-3.0-only",
+  "author": "Bogdan",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/bogdan-od/laplace.git"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "setup": "npm ci && npm ci --prefix server && npm ci --prefix web",
+    "images": "node scripts/images.mjs",
+    "build": "npm run build --prefix server && npm run build --prefix web",
+    "start": "node server/dist/server/src/main",
+    "test": "node --test --test-concurrency=3 app/test/*.test.mjs",
+    "test:browser:prepare": "mkdir -p app/test/out && node app/test/engine.node.mjs record buildroot app/test/out/br1.json images/buildroot-boot.snap",
+    "test:server": "npm test --prefix server",
+    "test:web": "npm test --prefix web",
+    "bench:replay": "node bench/browser/run-replay.mjs chromium",
+    "bench:speed": "node bench/speed.mjs",
+    "bench:net": "node bench/net-browser.mjs"
+  },
+  "devDependencies": {
+    "tar": "^7.5.0",
+    "v86": "0.5.473"
+  }
+}

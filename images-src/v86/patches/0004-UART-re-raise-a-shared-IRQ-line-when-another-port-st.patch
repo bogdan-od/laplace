@@ -1,0 +1,46 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Bogdan <189150777+bogdan-od@users.noreply.github.com>
+Subject: [PATCH 04/10] UART: re-raise a shared IRQ line when another port
+ still requests it
+
+ttyS0 and ttyS2 (and ttyS1 and ttyS3) share an interrupt line. The PIC is
+edge-triggered, so one port lowering the line erased the request of the other,
+and the other port's own request gave no new edge while the line was already
+high. The guest then stopped getting input on one of the ports. When a port
+lowers the line and another port on it still has a pending interrupt, raise the
+line again so that the shared handler of the driver walks over all ports.
+---
+ src/uart.js | 17 +++++++++++++++++
+ 1 file changed, 17 insertions(+)
+
+diff --git a/src/uart.js b/src/uart.js
+index 2b03c99c..275dfe50 100644
+--- a/src/uart.js
++++ b/src/uart.js
+@@ -355,9 +355,26 @@ UART.prototype.CheckInterrupt = function()
+     {
+         this.iir = UART_IIR_NO_INT;
+         this.cpu.device_lower_irq(this.irq);
++        if(this.other_uart_requests_irq())
++        {
++            // ttyS0 and ttyS2 (and ttyS1 and ttyS3) share a line. The PIC is edge-triggered: one port lowering the line
++            // erases the other's request, and its own request gives no edge while the line is already up. A new edge
++            // makes the driver's shared handler walk over all the ports again.
++            this.cpu.device_raise_irq(this.irq);
++        }
+     }
+ };
+ 
++UART.prototype.other_uart_requests_irq = function()
++{
++    for(const name of ["uart0", "uart1", "uart2", "uart3"])
++    {
++        const other = this.cpu.devices[name];
++        if(other && other !== this && other.irq === this.irq && other.iir !== UART_IIR_NO_INT) return true;
++    }
++    return false;
++};
++
+ UART.prototype.ThrowInterrupt = function(line)
+ {
+     this.ints |= (1 << line);

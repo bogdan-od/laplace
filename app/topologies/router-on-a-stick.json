@@ -1,0 +1,52 @@
+{
+  "format": "v86-topology/1",
+  "title": "Роутер між двома мережами",
+  "machines": [
+    {
+      "id": "pc1",
+      "title": "Клієнт",
+      "profile": "net",
+      "setup": "ifconfig eth0 hw ether {mac} 10.0.10.2 netmask 255.255.255.0 up; route add default gw 10.0.10.1\n"
+    },
+    {
+      "id": "r1",
+      "title": "Роутер",
+      "profile": "net",
+      "setup": "ip link set eth0 address {mac}; ip link set eth0 up; ip link add link eth0 name eth0.10 type vlan id 10; ip link add link eth0 name eth0.20 type vlan id 20; ip addr add 10.0.10.1/24 dev eth0.10; ip addr add 10.0.20.1/24 dev eth0.20; ip link set eth0.10 up; ip link set eth0.20 up; echo 1 > /proc/sys/net/ipv4/ip_forward\n"
+    },
+    {
+      "id": "srv",
+      "title": "Сервер",
+      "profile": "net",
+      "setup": "ifconfig eth0 hw ether {mac} 10.0.20.2 netmask 255.255.255.0 up; route add default gw 10.0.20.1\n"
+    }
+  ],
+  "switches": [
+    {
+      "id": "sw1"
+    }
+  ],
+  "links": [
+    {
+      "machine": "pc1",
+      "switch": "sw1",
+      "mode": "access",
+      "vlan": 10
+    },
+    {
+      "machine": "r1",
+      "switch": "sw1",
+      "mode": "trunk",
+      "allowed": [
+        10,
+        20
+      ]
+    },
+    {
+      "machine": "srv",
+      "switch": "sw1",
+      "mode": "access",
+      "vlan": 20
+    }
+  ]
+}

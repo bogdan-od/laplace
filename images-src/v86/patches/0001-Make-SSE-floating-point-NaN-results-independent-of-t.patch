@@ -1,0 +1,524 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Bogdan <189150777+bogdan-od@users.noreply.github.com>
+Subject: [PATCH 01/10] Make SSE floating-point NaN results independent of the
+ host CPU
+
+wasm leaves the sign and payload of a NaN produced by a float operation to the
+host: x86 gives ffc00000, ARM gives 7fc00000. The xmm registers end up in the
+memory checksum of a recorded session, so a recording made on one machine did
+not replay on another.
+
+Route every arithmetic SSE/SSE2 operation (add, sub, mul, div, sqrt, rsqrt,
+rcp, min, max, conversions between f32 and f64) through small non-inlined
+helpers that build a NaN result from the operand bits by the x86 rule: the
+first NaN operand with the quiet bit set, otherwise the "indefinite" value.
+---
+ src/rust/cpu/instructions_0f.rs | 150 ++++++++++++++++----------------
+ src/rust/cpu/sse_instr.rs       |  88 +++++++++++++++++++
+ 2 files changed, 163 insertions(+), 75 deletions(-)
+
+diff --git a/src/rust/cpu/instructions_0f.rs b/src/rust/cpu/instructions_0f.rs
+index f4758724..44155be0 100644
+--- a/src/rust/cpu/instructions_0f.rs
++++ b/src/rust/cpu/instructions_0f.rs
+@@ -1600,10 +1600,10 @@ pub unsafe fn instr_0F51(source: reg128, r: i32) {
+     // XXX: Should round according to round control
+     let result = reg128 {
+         f32: [
+-            source.f32[0].sqrt(),
+-            source.f32[1].sqrt(),
+-            source.f32[2].sqrt(),
+-            source.f32[3].sqrt(),
++            sse_sqrt_f32(source.f32[0]),
++            sse_sqrt_f32(source.f32[1]),
++            sse_sqrt_f32(source.f32[2]),
++            sse_sqrt_f32(source.f32[3]),
+         ],
+     };
+     write_xmm_reg128(r, result);
+@@ -1617,7 +1617,7 @@ pub unsafe fn instr_660F51(source: reg128, r: i32) {
+     // sqrtpd xmm, xmm/mem128
+     // XXX: Should round according to round control
+     let result = reg128 {
+-        f64: [source.f64[0].sqrt(), source.f64[1].sqrt()],
++        f64: [sse_sqrt_f64(source.f64[0]), sse_sqrt_f64(source.f64[1])],
+     };
+     write_xmm_reg128(r, result);
+ }
+@@ -1629,7 +1629,7 @@ pub unsafe fn instr_660F51_mem(addr: i32, r: i32) {
+ pub unsafe fn instr_F20F51(source: u64, r: i32) {
+     // sqrtsd xmm, xmm/mem64
+     // XXX: Should round according to round control
+-    write_xmm_f64(r, f64::from_bits(source).sqrt());
++    write_xmm_f64(r, sse_sqrt_f64(f64::from_bits(source)));
+ }
+ pub unsafe fn instr_F20F51_reg(r1: i32, r2: i32) { instr_F20F51(read_xmm64s(r1), r2); }
+ pub unsafe fn instr_F20F51_mem(addr: i32, r: i32) {
+@@ -1639,7 +1639,7 @@ pub unsafe fn instr_F20F51_mem(addr: i32, r: i32) {
+ pub unsafe fn instr_F30F51(source: f32, r: i32) {
+     // sqrtss xmm, xmm/mem32
+     // XXX: Should round according to round control
+-    write_xmm_f32(r, source.sqrt());
++    write_xmm_f32(r, sse_sqrt_f32(source));
+ }
+ pub unsafe fn instr_F30F51_reg(r1: i32, r2: i32) { instr_F30F51(read_xmm_f32(r1), r2); }
+ pub unsafe fn instr_F30F51_mem(addr: i32, r: i32) {
+@@ -1651,10 +1651,10 @@ pub unsafe fn instr_0F52(source: reg128, r: i32) {
+     // rcpps xmm1, xmm2/m128
+     let result = reg128 {
+         f32: [
+-            1.0 / source.f32[0].sqrt(),
+-            1.0 / source.f32[1].sqrt(),
+-            1.0 / source.f32[2].sqrt(),
+-            1.0 / source.f32[3].sqrt(),
++            sse_rsqrt_f32(source.f32[0]),
++            sse_rsqrt_f32(source.f32[1]),
++            sse_rsqrt_f32(source.f32[2]),
++            sse_rsqrt_f32(source.f32[3]),
+         ],
+     };
+     write_xmm_reg128(r, result);
+@@ -1666,7 +1666,7 @@ pub unsafe fn instr_0F52_mem(addr: i32, r: i32) {
+ #[no_mangle]
+ pub unsafe fn instr_F30F52(source: f32, r: i32) {
+     // rsqrtss xmm1, xmm2/m32
+-    write_xmm_f32(r, 1.0 / source.sqrt());
++    write_xmm_f32(r, sse_rsqrt_f32(source));
+ }
+ pub unsafe fn instr_F30F52_reg(r1: i32, r2: i32) { instr_F30F52(read_xmm_f32(r1), r2); }
+ pub unsafe fn instr_F30F52_mem(addr: i32, r: i32) {
+@@ -1678,10 +1678,10 @@ pub unsafe fn instr_0F53(source: reg128, r: i32) {
+     // rcpps xmm, xmm/m128
+     let result = reg128 {
+         f32: [
+-            1.0 / source.f32[0],
+-            1.0 / source.f32[1],
+-            1.0 / source.f32[2],
+-            1.0 / source.f32[3],
++            sse_rcp_f32(source.f32[0]),
++            sse_rcp_f32(source.f32[1]),
++            sse_rcp_f32(source.f32[2]),
++            sse_rcp_f32(source.f32[3]),
+         ],
+     };
+     write_xmm_reg128(r, result);
+@@ -1693,7 +1693,7 @@ pub unsafe fn instr_0F53_mem(addr: i32, r: i32) {
+ #[no_mangle]
+ pub unsafe fn instr_F30F53(source: f32, r: i32) {
+     // rcpss xmm, xmm/m32
+-    write_xmm_f32(r, 1.0 / source);
++    write_xmm_f32(r, sse_rcp_f32(source));
+ }
+ pub unsafe fn instr_F30F53_reg(r1: i32, r2: i32) { instr_F30F53(read_xmm_f32(r1), r2); }
+ pub unsafe fn instr_F30F53_mem(addr: i32, r: i32) {
+@@ -1787,10 +1787,10 @@ pub unsafe fn instr_0F58(source: reg128, r: i32) {
+     let destination = read_xmm128s(r);
+     let result = reg128 {
+         f32: [
+-            source.f32[0] + destination.f32[0],
+-            source.f32[1] + destination.f32[1],
+-            source.f32[2] + destination.f32[2],
+-            source.f32[3] + destination.f32[3],
++            sse_add_f32(destination.f32[0], source.f32[0]),
++            sse_add_f32(destination.f32[1], source.f32[1]),
++            sse_add_f32(destination.f32[2], source.f32[2]),
++            sse_add_f32(destination.f32[3], source.f32[3]),
+         ],
+     };
+     write_xmm_reg128(r, result);
+@@ -1805,8 +1805,8 @@ pub unsafe fn instr_660F58(source: reg128, r: i32) {
+     let destination = read_xmm128s(r);
+     let result = reg128 {
+         f64: [
+-            source.f64[0] + destination.f64[0],
+-            source.f64[1] + destination.f64[1],
++            sse_add_f64(destination.f64[0], source.f64[0]),
++            sse_add_f64(destination.f64[1], source.f64[1]),
+         ],
+     };
+     write_xmm_reg128(r, result);
+@@ -1819,7 +1819,7 @@ pub unsafe fn instr_660F58_mem(addr: i32, r: i32) {
+ pub unsafe fn instr_F20F58(source: u64, r: i32) {
+     // addsd xmm, xmm/mem64
+     let destination = read_xmm64s(r);
+-    write_xmm_f64(r, f64::from_bits(source) + f64::from_bits(destination));
++    write_xmm_f64(r, sse_add_f64(f64::from_bits(destination), f64::from_bits(source)));
+ }
+ pub unsafe fn instr_F20F58_reg(r1: i32, r2: i32) { instr_F20F58(read_xmm64s(r1), r2); }
+ pub unsafe fn instr_F20F58_mem(addr: i32, r: i32) {
+@@ -1829,7 +1829,7 @@ pub unsafe fn instr_F20F58_mem(addr: i32, r: i32) {
+ pub unsafe fn instr_F30F58(source: f32, r: i32) {
+     // addss xmm, xmm/mem32
+     let destination = read_xmm_f32(r);
+-    let result = source + destination;
++    let result = sse_add_f32(destination, source);
+     write_xmm_f32(r, result);
+ }
+ pub unsafe fn instr_F30F58_reg(r1: i32, r2: i32) { instr_F30F58(read_xmm_f32(r1), r2); }
+@@ -1843,10 +1843,10 @@ pub unsafe fn instr_0F59(source: reg128, r: i32) {
+     let destination = read_xmm128s(r);
+     let result = reg128 {
+         f32: [
+-            source.f32[0] * destination.f32[0],
+-            source.f32[1] * destination.f32[1],
+-            source.f32[2] * destination.f32[2],
+-            source.f32[3] * destination.f32[3],
++            sse_mul_f32(destination.f32[0], source.f32[0]),
++            sse_mul_f32(destination.f32[1], source.f32[1]),
++            sse_mul_f32(destination.f32[2], source.f32[2]),
++            sse_mul_f32(destination.f32[3], source.f32[3]),
+         ],
+     };
+     write_xmm_reg128(r, result);
+@@ -1861,8 +1861,8 @@ pub unsafe fn instr_660F59(source: reg128, r: i32) {
+     let destination = read_xmm128s(r);
+     let result = reg128 {
+         f64: [
+-            source.f64[0] * destination.f64[0],
+-            source.f64[1] * destination.f64[1],
++            sse_mul_f64(destination.f64[0], source.f64[0]),
++            sse_mul_f64(destination.f64[1], source.f64[1]),
+         ],
+     };
+     write_xmm_reg128(r, result);
+@@ -1875,7 +1875,7 @@ pub unsafe fn instr_660F59_mem(addr: i32, r: i32) {
+ pub unsafe fn instr_F20F59(source: u64, r: i32) {
+     // mulsd xmm, xmm/mem64
+     let destination = read_xmm64s(r);
+-    write_xmm_f64(r, f64::from_bits(source) * f64::from_bits(destination));
++    write_xmm_f64(r, sse_mul_f64(f64::from_bits(destination), f64::from_bits(source)));
+ }
+ pub unsafe fn instr_F20F59_reg(r1: i32, r2: i32) { instr_F20F59(read_xmm64s(r1), r2); }
+ pub unsafe fn instr_F20F59_mem(addr: i32, r: i32) {
+@@ -1885,7 +1885,7 @@ pub unsafe fn instr_F20F59_mem(addr: i32, r: i32) {
+ pub unsafe fn instr_F30F59(source: f32, r: i32) {
+     // mulss xmm, xmm/mem32
+     let destination = read_xmm_f32(r);
+-    let result = source * destination;
++    let result = sse_mul_f32(destination, source);
+     write_xmm_f32(r, result);
+ }
+ pub unsafe fn instr_F30F59_reg(r1: i32, r2: i32) { instr_F30F59(read_xmm_f32(r1), r2); }
+@@ -1898,7 +1898,7 @@ pub unsafe fn instr_0F5A(source: u64, r: i32) {
+     // cvtps2pd xmm1, xmm2/m64
+     let source: [f32; 2] = std::mem::transmute(source);
+     let result = reg128 {
+-        f64: [source[0] as f64, source[1] as f64],
++        f64: [sse_f32_to_f64(source[0]), sse_f32_to_f64(source[1])],
+     };
+     write_xmm_reg128(r, result);
+ }
+@@ -1911,7 +1911,7 @@ pub unsafe fn instr_660F5A(source: reg128, r: i32) {
+     // cvtpd2ps xmm1, xmm2/m128
+     let result = reg128 {
+         // XXX: These conversions are lossy and should round according to the round control
+-        f32: [source.f64[0] as f32, source.f64[1] as f32, 0., 0.],
++        f32: [sse_f64_to_f32(source.f64[0]), sse_f64_to_f32(source.f64[1]), 0., 0.],
+     };
+     write_xmm_reg128(r, result);
+ }
+@@ -1923,7 +1923,7 @@ pub unsafe fn instr_660F5A_mem(addr: i32, r: i32) {
+ pub unsafe fn instr_F20F5A(source: u64, r: i32) {
+     // cvtsd2ss xmm1, xmm2/m64
+     // XXX: This conversions is lossy and should round according to the round control
+-    write_xmm_f32(r, f64::from_bits(source) as f32);
++    write_xmm_f32(r, sse_f64_to_f32(f64::from_bits(source)));
+ }
+ pub unsafe fn instr_F20F5A_reg(r1: i32, r2: i32) { instr_F20F5A(read_xmm64s(r1), r2); }
+ pub unsafe fn instr_F20F5A_mem(addr: i32, r: i32) {
+@@ -1932,7 +1932,7 @@ pub unsafe fn instr_F20F5A_mem(addr: i32, r: i32) {
+ #[no_mangle]
+ pub unsafe fn instr_F30F5A(source: f32, r: i32) {
+     // cvtss2sd xmm1, xmm2/m32
+-    write_xmm_f64(r, source as f64);
++    write_xmm_f64(r, sse_f32_to_f64(source));
+ }
+ pub unsafe fn instr_F30F5A_reg(r1: i32, r2: i32) { instr_F30F5A(read_xmm_f32(r1), r2); }
+ pub unsafe fn instr_F30F5A_mem(addr: i32, r: i32) {
+@@ -2000,10 +2000,10 @@ pub unsafe fn instr_0F5C(source: reg128, r: i32) {
+     let destination = read_xmm128s(r);
+     let result = reg128 {
+         f32: [
+-            destination.f32[0] - source.f32[0],
+-            destination.f32[1] - source.f32[1],
+-            destination.f32[2] - source.f32[2],
+-            destination.f32[3] - source.f32[3],
++            sse_sub_f32(destination.f32[0], source.f32[0]),
++            sse_sub_f32(destination.f32[1], source.f32[1]),
++            sse_sub_f32(destination.f32[2], source.f32[2]),
++            sse_sub_f32(destination.f32[3], source.f32[3]),
+         ],
+     };
+     write_xmm_reg128(r, result);
+@@ -2018,8 +2018,8 @@ pub unsafe fn instr_660F5C(source: reg128, r: i32) {
+     let destination = read_xmm128s(r);
+     let result = reg128 {
+         f64: [
+-            destination.f64[0] - source.f64[0],
+-            destination.f64[1] - source.f64[1],
++            sse_sub_f64(destination.f64[0], source.f64[0]),
++            sse_sub_f64(destination.f64[1], source.f64[1]),
+         ],
+     };
+     write_xmm_reg128(r, result);
+@@ -2032,7 +2032,7 @@ pub unsafe fn instr_660F5C_mem(addr: i32, r: i32) {
+ pub unsafe fn instr_F20F5C(source: u64, r: i32) {
+     // subsd xmm, xmm/mem64
+     let destination = read_xmm64s(r);
+-    write_xmm_f64(r, f64::from_bits(destination) - f64::from_bits(source));
++    write_xmm_f64(r, sse_sub_f64(f64::from_bits(destination), f64::from_bits(source)));
+ }
+ pub unsafe fn instr_F20F5C_reg(r1: i32, r2: i32) { instr_F20F5C(read_xmm64s(r1), r2); }
+ pub unsafe fn instr_F20F5C_mem(addr: i32, r: i32) {
+@@ -2042,7 +2042,7 @@ pub unsafe fn instr_F20F5C_mem(addr: i32, r: i32) {
+ pub unsafe fn instr_F30F5C(source: f32, r: i32) {
+     // subss xmm, xmm/mem32
+     let destination = read_xmm_f32(r);
+-    let result = destination - source;
++    let result = sse_sub_f32(destination, source);
+     write_xmm_f32(r, result);
+ }
+ pub unsafe fn instr_F30F5C_reg(r1: i32, r2: i32) { instr_F30F5C(read_xmm_f32(r1), r2); }
+@@ -2055,10 +2055,10 @@ pub unsafe fn instr_0F5D(source: reg128, r: i32) {
+     let destination = read_xmm128s(r);
+     let result = reg128 {
+         f32: [
+-            sse_min(destination.f32[0] as f64, source.f32[0] as f64) as f32,
+-            sse_min(destination.f32[1] as f64, source.f32[1] as f64) as f32,
+-            sse_min(destination.f32[2] as f64, source.f32[2] as f64) as f32,
+-            sse_min(destination.f32[3] as f64, source.f32[3] as f64) as f32,
++            sse_min_f32(destination.f32[0], source.f32[0]),
++            sse_min_f32(destination.f32[1], source.f32[1]),
++            sse_min_f32(destination.f32[2], source.f32[2]),
++            sse_min_f32(destination.f32[3], source.f32[3]),
+         ],
+     };
+     write_xmm_reg128(r, result);
+@@ -2100,7 +2100,7 @@ pub unsafe fn instr_F20F5D_mem(addr: i32, r: i32) {
+ pub unsafe fn instr_F30F5D(source: f32, r: i32) {
+     // minss xmm, xmm/mem32
+     let destination = read_xmm_f32(r);
+-    let result = sse_min(destination as f64, source as f64) as f32;
++    let result = sse_min_f32(destination, source);
+     write_xmm_f32(r, result);
+ }
+ pub unsafe fn instr_F30F5D_reg(r1: i32, r2: i32) { instr_F30F5D(read_xmm_f32(r1), r2); }
+@@ -2113,10 +2113,10 @@ pub unsafe fn instr_0F5E(source: reg128, r: i32) {
+     let destination = read_xmm128s(r);
+     let result = reg128 {
+         f32: [
+-            destination.f32[0] / source.f32[0],
+-            destination.f32[1] / source.f32[1],
+-            destination.f32[2] / source.f32[2],
+-            destination.f32[3] / source.f32[3],
++            sse_div_f32(destination.f32[0], source.f32[0]),
++            sse_div_f32(destination.f32[1], source.f32[1]),
++            sse_div_f32(destination.f32[2], source.f32[2]),
++            sse_div_f32(destination.f32[3], source.f32[3]),
+         ],
+     };
+     write_xmm_reg128(r, result);
+@@ -2131,8 +2131,8 @@ pub unsafe fn instr_660F5E(source: reg128, r: i32) {
+     let destination = read_xmm128s(r);
+     let result = reg128 {
+         f64: [
+-            destination.f64[0] / source.f64[0],
+-            destination.f64[1] / source.f64[1],
++            sse_div_f64(destination.f64[0], source.f64[0]),
++            sse_div_f64(destination.f64[1], source.f64[1]),
+         ],
+     };
+     write_xmm_reg128(r, result);
+@@ -2145,7 +2145,7 @@ pub unsafe fn instr_660F5E_mem(addr: i32, r: i32) {
+ pub unsafe fn instr_F20F5E(source: u64, r: i32) {
+     // divsd xmm, xmm/mem64
+     let destination = read_xmm64s(r);
+-    write_xmm_f64(r, f64::from_bits(destination) / f64::from_bits(source));
++    write_xmm_f64(r, sse_div_f64(f64::from_bits(destination), f64::from_bits(source)));
+ }
+ pub unsafe fn instr_F20F5E_reg(r1: i32, r2: i32) { instr_F20F5E(read_xmm64s(r1), r2); }
+ pub unsafe fn instr_F20F5E_mem(addr: i32, r: i32) {
+@@ -2155,7 +2155,7 @@ pub unsafe fn instr_F20F5E_mem(addr: i32, r: i32) {
+ pub unsafe fn instr_F30F5E(source: f32, r: i32) {
+     // divss xmm, xmm/mem32
+     let destination = read_xmm_f32(r);
+-    let result = destination / source;
++    let result = sse_div_f32(destination, source);
+     write_xmm_f32(r, result);
+ }
+ pub unsafe fn instr_F30F5E_reg(r1: i32, r2: i32) { instr_F30F5E(read_xmm_f32(r1), r2); }
+@@ -2168,10 +2168,10 @@ pub unsafe fn instr_0F5F(source: reg128, r: i32) {
+     let destination = read_xmm128s(r);
+     let result = reg128 {
+         f32: [
+-            sse_max(destination.f32[0] as f64, source.f32[0] as f64) as f32,
+-            sse_max(destination.f32[1] as f64, source.f32[1] as f64) as f32,
+-            sse_max(destination.f32[2] as f64, source.f32[2] as f64) as f32,
+-            sse_max(destination.f32[3] as f64, source.f32[3] as f64) as f32,
++            sse_max_f32(destination.f32[0], source.f32[0]),
++            sse_max_f32(destination.f32[1], source.f32[1]),
++            sse_max_f32(destination.f32[2], source.f32[2]),
++            sse_max_f32(destination.f32[3], source.f32[3]),
+         ],
+     };
+     write_xmm_reg128(r, result);
+@@ -2213,7 +2213,7 @@ pub unsafe fn instr_F20F5F_mem(addr: i32, r: i32) {
+ pub unsafe fn instr_F30F5F(source: f32, r: i32) {
+     // maxss xmm, xmm/mem32
+     let destination = read_xmm_f32(r);
+-    let result = sse_max(destination as f64, source as f64) as f32;
++    let result = sse_max_f32(destination, source);
+     write_xmm_f32(r, result);
+ }
+ pub unsafe fn instr_F30F5F_reg(r1: i32, r2: i32) { instr_F30F5F(read_xmm_f32(r1), r2); }
+@@ -3022,8 +3022,8 @@ pub unsafe fn instr_660F7C(source: reg128, r: i32) {
+         r,
+         reg128 {
+             f64: [
+-                destination.f64[0] + destination.f64[1],
+-                source.f64[0] + source.f64[1],
++                sse_add_f64(destination.f64[0], destination.f64[1]),
++                sse_add_f64(source.f64[0], source.f64[1]),
+             ],
+         },
+     );
+@@ -3040,10 +3040,10 @@ pub unsafe fn instr_F20F7C(source: reg128, r: i32) {
+         r,
+         reg128 {
+             f32: [
+-                destination.f32[0] + destination.f32[1],
+-                destination.f32[2] + destination.f32[3],
+-                source.f32[0] + source.f32[1],
+-                source.f32[2] + source.f32[3],
++                sse_add_f32(destination.f32[0], destination.f32[1]),
++                sse_add_f32(destination.f32[2], destination.f32[3]),
++                sse_add_f32(source.f32[0], source.f32[1]),
++                sse_add_f32(source.f32[2], source.f32[3]),
+             ],
+         },
+     );
+@@ -3061,8 +3061,8 @@ pub unsafe fn instr_660F7D(source: reg128, r: i32) {
+         r,
+         reg128 {
+             f64: [
+-                destination.f64[0] - destination.f64[1],
+-                source.f64[0] - source.f64[1],
++                sse_sub_f64(destination.f64[0], destination.f64[1]),
++                sse_sub_f64(source.f64[0], source.f64[1]),
+             ],
+         },
+     );
+@@ -3080,10 +3080,10 @@ pub unsafe fn instr_F20F7D(source: reg128, r: i32) {
+         r,
+         reg128 {
+             f32: [
+-                destination.f32[0] - destination.f32[1],
+-                destination.f32[2] - destination.f32[3],
+-                source.f32[0] - source.f32[1],
+-                source.f32[2] - source.f32[3],
++                sse_sub_f32(destination.f32[0], destination.f32[1]),
++                sse_sub_f32(destination.f32[2], destination.f32[3]),
++                sse_sub_f32(source.f32[0], source.f32[1]),
++                sse_sub_f32(source.f32[2], source.f32[3]),
+             ],
+         },
+     );
+diff --git a/src/rust/cpu/sse_instr.rs b/src/rust/cpu/sse_instr.rs
+index 8cacc28f..f3e13910 100644
+--- a/src/rust/cpu/sse_instr.rs
++++ b/src/rust/cpu/sse_instr.rs
+@@ -284,6 +284,94 @@ pub unsafe fn sse_comparison(op: i32, x: f64, y: f64) -> bool {
+         },
+     };
+ }
++// NaN bits in the results of floating-point SSE operations. wasm leaves the sign and payload of a NaN to the host
++// (x86: ffc00000, ARM: 7fc00000), and the checksum sees the xmm registers. So a NaN result is always built from the
++// operand bits by the x86 rule: the first NaN operand with the quiet bit set, otherwise the "indefinite" value
++// (a negative quiet NaN).
++const F32_QUIET_BIT: u32 = 0x0040_0000;
++const F32_DEFAULT_NAN: u32 = 0xFFC0_0000;
++const F64_QUIET_BIT: u64 = 0x0008_0000_0000_0000;
++const F64_DEFAULT_NAN: u64 = 0xFFF8_0000_0000_0000;
++
++#[inline(never)]
++pub fn sse_nan_f32(result: f32, first: f32, second: f32) -> f32 {
++    if !result.is_nan() {
++        return result;
++    }
++    if first.is_nan() {
++        return f32::from_bits(first.to_bits() | F32_QUIET_BIT);
++    }
++    if second.is_nan() {
++        return f32::from_bits(second.to_bits() | F32_QUIET_BIT);
++    }
++    f32::from_bits(F32_DEFAULT_NAN)
++}
++#[inline(never)]
++pub fn sse_nan_f64(result: f64, first: f64, second: f64) -> f64 {
++    if !result.is_nan() {
++        return result;
++    }
++    if first.is_nan() {
++        return f64::from_bits(first.to_bits() | F64_QUIET_BIT);
++    }
++    if second.is_nan() {
++        return f64::from_bits(second.to_bits() | F64_QUIET_BIT);
++    }
++    f64::from_bits(F64_DEFAULT_NAN)
++}
++
++// #[inline(never)]: raw wasm float operations stay only in these functions,
++// which can be checked in the function bodies of v86.wasm.
++// x86 takes the destination as the first operand (for addps xmm1, xmm2 it is xmm1).
++#[inline(never)]
++pub fn sse_add_f32(first: f32, second: f32) -> f32 { sse_nan_f32(first + second, first, second) }
++#[inline(never)]
++pub fn sse_sub_f32(first: f32, second: f32) -> f32 { sse_nan_f32(first - second, first, second) }
++#[inline(never)]
++pub fn sse_mul_f32(first: f32, second: f32) -> f32 { sse_nan_f32(first * second, first, second) }
++#[inline(never)]
++pub fn sse_div_f32(first: f32, second: f32) -> f32 { sse_nan_f32(first / second, first, second) }
++#[inline(never)]
++pub fn sse_add_f64(first: f64, second: f64) -> f64 { sse_nan_f64(first + second, first, second) }
++#[inline(never)]
++pub fn sse_sub_f64(first: f64, second: f64) -> f64 { sse_nan_f64(first - second, first, second) }
++#[inline(never)]
++pub fn sse_mul_f64(first: f64, second: f64) -> f64 { sse_nan_f64(first * second, first, second) }
++#[inline(never)]
++pub fn sse_div_f64(first: f64, second: f64) -> f64 { sse_nan_f64(first / second, first, second) }
++#[inline(never)]
++pub fn sse_sqrt_f32(x: f32) -> f32 { sse_nan_f32(x.sqrt(), x, x) }
++#[inline(never)]
++pub fn sse_sqrt_f64(x: f64) -> f64 { sse_nan_f64(x.sqrt(), x, x) }
++#[inline(never)]
++pub fn sse_rsqrt_f32(x: f32) -> f32 { sse_nan_f32(1.0 / x.sqrt(), x, x) }
++#[inline(never)]
++pub fn sse_rcp_f32(x: f32) -> f32 { sse_nan_f32(1.0 / x, x, x) }
++
++// cvtss2sd / cvtsd2ss: the sign and payload of a NaN carry over, the quiet bit is set.
++#[inline(never)]
++pub fn sse_f32_to_f64(x: f32) -> f64 {
++    if !x.is_nan() {
++        return x as f64;
++    }
++    let bits = x.to_bits() as u64;
++    f64::from_bits((bits >> 31) << 63 | 0x7FF8_0000_0000_0000 | (bits & 0x007F_FFFF) << 29)
++}
++#[inline(never)]
++pub fn sse_f64_to_f32(x: f64) -> f32 {
++    if !x.is_nan() {
++        return x as f32;
++    }
++    let bits = x.to_bits();
++    f32::from_bits(((bits >> 63) as u32) << 31 | 0x7FC0_0000 | ((bits >> 29) as u32 & 0x003F_FFFF))
++}
++
++// minps/maxps: if either operand is NaN or both are zero, the second operand is returned as is, unconverted.
++#[inline(never)]
++pub fn sse_min_f32(x: f32, y: f32) -> f32 { if x < y { x } else { y } }
++#[inline(never)]
++pub fn sse_max_f32(x: f32, y: f32) -> f32 { if x > y { x } else { y } }
++
+ pub unsafe fn sse_min(x: f64, y: f64) -> f64 {
+     // if both x and y are 0 or x is nan, y is returned
+     return if x < y { x } else { y };

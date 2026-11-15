@@ -1,0 +1,36 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Bogdan <189150777+bogdan-od@users.noreply.github.com>
+Subject: [PATCH 07/10] 9p: save qid.type of an inode in the filesystem state
+
+Files from an image description have qid.type 0, while set_state derived the
+type from the mode (0x80 for a regular file). After a restore the guest got a
+different qid in Rlopen and a replay diverged. Store qid.type and read it back;
+states without it restore as before.
+---
+ lib/filesystem.js | 6 +++++-
+ 1 file changed, 5 insertions(+), 1 deletion(-)
+
+diff --git a/lib/filesystem.js b/lib/filesystem.js
+index 7bff75a3..ee028e56 100644
+--- a/lib/filesystem.js
++++ b/lib/filesystem.js
+@@ -392,6 +392,9 @@ Inode.prototype.get_state = function()
+     state[11] = this.qid.version;
+     state[12] = this.qid.path;
+     state[13] = this.nlinks;
++    // v86-replay: files from the image description have qid.type 0, while set_state used to derive the type from mode (0x80 for
++    // a regular file). After a restore the guest got a different qid in Rlopen, and the replay diverged.
++    state[14] = this.qid.type;
+ 
+     //state[23] = this.mount_id;
+     //state[24] = this.foreign_id;
+@@ -443,7 +446,8 @@ Inode.prototype.set_state = function(state)
+     this.ctime = state[8];
+     this.atime = state[9];
+     this.mtime = state[10];
+-    this.qid.type = (this.mode & S_IFMT) >> 8;
++    // Snapshots without state[14] (taken before this change) restore as before: journals recorded from them do not diverge.
++    this.qid.type = state[14] ?? (this.mode & S_IFMT) >> 8;
+     this.qid.version = state[11];
+     this.qid.path = state[12];
+     this.nlinks = state[13];
