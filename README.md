@@ -1,76 +1,78 @@
 # Laplace
 
-Linux in the browser on the [v86](https://github.com/copy/v86) emulator, with deterministic session recording and replay. A session is a journal of input events plus snapshots: it can be replayed to the exact instruction, rewound, continued from any moment, verified and shown to a teacher. Machines of a class are connected by a network between browsers.
+**Українська** | [English](README.en.md)
 
-![The player: a recorded session with the command list and the timeline](docs/screenshot.png)
+Linux у браузері на емуляторі [v86](https://github.com/copy/v86) з детермінованим записом і повтором сеансу. Сеанс - це журнал вхідних подій і знімки стану: його можна повторити з точністю до інструкції, перемотати, продовжити з будь-якої миті, перевірити й показати викладачеві. Машини класу з'єднані мережею між браузерами.
 
-## Features
+![Програвач: записаний сеанс зі списком команд і шкалою часу](docs/screenshot.png)
 
-- Deterministic core: the same journal gives the same guest state on every host, checked by digests of guest memory.
-- Rewind, "continue from here", rollback to any earlier command, and a player with a timeline and command search.
-- Teacher and student roles: classes, assignments, a calendar, live terminals of the whole group, takeover of student input, help requests, submissions, grades, lessons with explanations and "try it yourself" segments.
-- Networks of up to six machines per topology: switches with VLANs, a router, NAT, between browsers over WebRTC with a server fallback, and optional Internet access through a relay.
-- A server that replays submitted journals itself to check them.
-- Images: Buildroot, a small network image (iproute2, iptables, dnsmasq, tcpdump, BIRD), Alpine, and an Alpine image for study with compilers and manual pages.
+## Можливості
 
-## Quick start
+- Детерміноване ядро: той самий журнал дає той самий стан гостьової системи на будь-якому комп'ютері, і це перевіряється хешами пам'яті гостя.
+- Перемотування, "продовжити звідси", відкат до будь-якої попередньої команди, програвач зі шкалою часу й пошуком команд.
+- Ролі викладача й учня: класи, завдання, календар, живі термінали всієї групи, перехоплення введення учня, запити допомоги, здача робіт, оцінки, уроки з поясненнями й відрізками "спробуйте самі".
+- Мережі до шести машин в одній топології: комутатори з VLAN, маршрутизатор, NAT; зв'язок між браузерами через WebRTC із запасним каналом через сервер і, за бажанням, доступ до інтернету через ретранслятор.
+- Сервер сам повторює здані журнали, щоб їх перевірити.
+- Образи: Buildroot, невеликий мережевий образ (iproute2, iptables, dnsmasq, tcpdump, BIRD), Alpine і навчальний образ Alpine з компіляторами й довідкою man.
 
-Requires Node.js 22 or newer.
+## Швидкий старт
+
+Потрібен Node.js 22 або новіший.
 
 ```
-npm run setup      # installs the root, server and web dependencies
-npm run images     # downloads the boot snapshots, kernels and file systems into images/
-npm run build      # builds the server and the web UI
-(cd server && npm run demo:reset)   # fills a database with demo data
+npm run setup      # встановлює залежності кореня, сервера й інтерфейсу
+npm run images     # завантажує знімки стану, ядра й файлові системи в images/
+npm run build      # збирає сервер і вебінтерфейс
+(cd server && npm run demo:reset)   # заповнює базу демонстраційними даними
 npm start          # http://127.0.0.1:8086
 ```
 
-Demo accounts: `teacher` / `teacher-demo`, `student01` ... `student24` / `student-demo`. The interface is in Ukrainian.
+Демонстраційні облікові записи: `teacher` / `teacher-demo`, `student01` ... `student24` / `student-demo`.
 
-`npm run images` takes about 420 MB from the GitHub release named in `images.json`. Choose profiles with `npm run images -- study net`, point it at another location with `LAPLACE_IMAGES_URL`, or build the files yourself: [docs/images.md](docs/images.md).
+`npm run images` завантажує близько 420 МБ з релізу GitHub, указаного в `images.json`. Окремі профілі: `npm run images -- study net`; інше джерело файлів задає змінна `LAPLACE_IMAGES_URL`; як зібрати образи самостійно, описано в [docs/images.md](docs/images.md) (англійською).
 
-State is kept in `data/` in the repository root by default; `LAPLACE_DB` and `LAPLACE_JOURNALS` change the database file and the journal folder, `PORT` the port.
+Стан типово зберігається в `data/` у корені репозиторію; `LAPLACE_DB` і `LAPLACE_JOURNALS` змінюють файл бази й каталог журналів, `PORT` - порт.
 
-## Layout
+## Структура
 
-| Path | Content |
-|------|---------|
-| `app/core/` | deterministic core: `engine.mjs`, journal format, snapshots, digests |
-| `app/machine/` | `Machine` and its Worker, the guest system channel |
-| `app/net/` | switch, topologies, WebRTC mesh, rooms, relay client, frame router |
-| `app/profiles.mjs` | image profiles and guest setup commands |
-| `app/topologies/` | sample network topologies |
-| `app/*.html`, `app/ui/` | minimal pages used to check the core in browsers |
-| `app/test/` | Node tests; `app/test/browser/` drives Chromium and Firefox |
-| `server/` | NestJS API, SQLite, journal storage, rooms, journal verification |
-| `web/` | React UI and its end-to-end scripts (`web/e2e/`) |
-| `shared/` | TypeScript types shared by server and web |
-| `v86det/` | v86 with the determinism patches (sources of `v86.wasm`) |
-| `images-src/` | how the images are built, and the v86 patches against upstream |
-| `bench/` | replay and speed benchmarks |
-| `vendor/` | the terminal emulator (xterm.js) |
-| `docs/` | [architecture](docs/architecture.md), [images](docs/images.md) |
+| Шлях | Вміст |
+|------|-------|
+| `app/core/` | детерміноване ядро: `engine.mjs`, формат журналу, знімки, хеші |
+| `app/machine/` | `Machine` і її Worker, системний канал гостя |
+| `app/net/` | комутатор, топології, WebRTC-мережа, кімнати, клієнт ретранслятора, маршрутизатор кадрів |
+| `app/profiles.mjs` | профілі образів і команди налаштування гостя |
+| `app/topologies/` | приклади мережевих топологій |
+| `app/*.html`, `app/ui/` | мінімальні сторінки для перевірки ядра в браузерах |
+| `app/test/` | тести в Node; `app/test/browser/` керує Chromium і Firefox |
+| `server/` | API на NestJS, SQLite, сховище журналів, кімнати, перевірка журналів |
+| `web/` | інтерфейс на React і його наскрізні тести (`web/e2e/`) |
+| `shared/` | спільні типи TypeScript для сервера й інтерфейсу |
+| `v86det/` | v86 з правками для детермінізму (вихідний код `v86.wasm`) |
+| `images-src/` | як зібрано образи, і правки v86 відносно основного репозиторію |
+| `bench/` | заміри повтору й швидкості |
+| `vendor/` | емулятор термінала (xterm.js) |
+| `docs/` | [архітектура](docs/architecture.md), [образи](docs/images.md) (англійською) |
 
-## Tests and benchmarks
-
-```
-npm test              # Node core tests, about 3 minutes
-npm run test:server   # server tests
-npm run test:web      # web UI tests (Vitest)
-```
-
-Browser tests need Chromium or Firefox and run one at a time. Record the journal they replay first with `npm run test:browser:prepare`, then run for example `node app/test/browser/machine.test.mjs` or `SKIP=relay_hang node app/test/browser/net.test.mjs`. The end-to-end scripts in `web/e2e/` need the built server and web UI (`npm run build`) and Chromium, for example `node web/e2e/demo.mjs`.
+## Тести й заміри
 
 ```
-npm run bench:replay  # replays the demo journals in Chromium (Firefox: node bench/browser/run-replay.mjs firefox)
-npm run bench:speed   # emulator speed
-npm run bench:net     # network between machines in the browser
+npm test              # тести ядра в Node, близько 3 хвилин
+npm run test:server   # тести сервера
+npm run test:web      # тести інтерфейсу (Vitest)
 ```
 
-## Browsers
+Браузерним тестам потрібен Chromium або Firefox, запускають їх по одному. Спершу запишіть журнал, який вони повторюють: `npm run test:browser:prepare`; потім запускайте, наприклад, `node app/test/browser/machine.test.mjs` або `SKIP=relay_hang node app/test/browser/net.test.mjs`. Наскрізним тестам у `web/e2e/` потрібні зібрані сервер та інтерфейс (`npm run build`) і Chromium, наприклад `node web/e2e/demo.mjs`.
 
-Chromium and Firefox are supported and produce identical replays: `bench:replay` checks every digest of the demo journals in either browser.
+```
+npm run bench:replay  # повтор демонстраційних журналів у Chromium (Firefox: node bench/browser/run-replay.mjs firefox)
+npm run bench:speed   # швидкість емулятора
+npm run bench:net     # мережа між машинами в браузері
+```
 
-## License
+## Браузери
 
-[AGPL-3.0-only](LICENSE). `v86det/` is derived from v86 and keeps its own license ([v86det/LICENSE](v86det/LICENSE)); `vendor/LICENSE.xterm` covers xterm.js.
+Підтримуються Chromium і Firefox, і повтор у них однаковий: `bench:replay` перевіряє кожен хеш демонстраційних журналів у будь-якому з двох браузерів.
+
+## Ліцензія
+
+[AGPL-3.0-only](LICENSE). Каталог `v86det/` походить від v86 і зберігає його ліцензію ([v86det/LICENSE](v86det/LICENSE)); `vendor/LICENSE.xterm` стосується xterm.js.
