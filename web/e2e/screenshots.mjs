@@ -220,8 +220,8 @@ async function page_driver(cdp, tag) {
             await key("keyUp", { key: "Escape", code: "Escape", windowsVirtualKeyCode: 27 });
         },
         console_lines: async () => (await evaluate(`(document.querySelector('[data-testid="terminal"] .xterm-rows')?.innerText ?? '')`)).split("\n").map(line => line.trim()),
-        type_line: async text => {
-            await evaluate(`document.querySelector('[data-testid="terminal"] .xterm-helper-textarea')?.focus()`);
+        type_line: async (text, terminal = '[data-testid="terminal"]') => {
+            await evaluate(`document.querySelector(${JSON.stringify(terminal + " .xterm-helper-textarea")})?.focus()`);
             for(const ch of text) {
                 await key("keyDown", { key: ch, text: ch });
                 await key("keyUp", { key: ch });
@@ -312,8 +312,8 @@ async function page_driver(cdp, tag) {
 function launch_chrome(port, profile) {
     return spawn("chromium-browser", [
         "--headless=new", "--disable-features=BackForwardCache", "--disable-gpu", `--remote-debugging-port=${port}`, `--user-data-dir=${profile}`,
-        `--window-size=${WIDTH},${HEIGHT}`, "about:blank",
-    ], { stdio: "ignore" });
+        `--window-size=${WIDTH},${HEIGHT}`, "--lang=uk", "about:blank",
+    ], { stdio: "ignore", env: { ...process.env, LANGUAGE: "uk" } }); // native widgets (file input) follow the browser locale
 }
 
 async function open_browser(port, tag) {
@@ -650,6 +650,15 @@ async function main() {
             const second = await submission_of(config, 2);
             await page.open(`${BASE}/compare?a=submission-${first.id}-m1&b=submission-${second.id}-m1`);
             await wait_for(async () => (await page.count('[data-testid="player"][data-phase="ready"][data-seeking="false"]')) === 2, PLAYER_TRIES, 250, "both players ready");
+            for(const side of [0, 1]) {
+                await page.evaluate(`(() => {
+                    document.querySelectorAll('[data-e2e-target]').forEach(el => el.removeAttribute("data-e2e-target"));
+                    const items = document.querySelectorAll('[data-testid="player"]')[${side}].querySelectorAll('[data-testid="command-item"]');
+                    items[items.length - 1].setAttribute("data-e2e-target", "1");
+                })()`);
+                await page.click('[data-e2e-target="1"]');
+            }
+            await wait_for(async () => (await page.count('[data-testid="player"][data-seeking="false"]')) === 2, PLAYER_TRIES, 250, "both players to stop seeking");
             await page.shot("porivnyannia-zdach", "Викладач: порівняння двох здач поруч, ліворуч і праворуч окремі програвачі зі своїми шкалами та списками команд.");
         });
         await step(22, "player: clip bar", async () => {
@@ -792,6 +801,8 @@ async function main() {
             await page.open(`${BASE}/library/${clip.id}`);
             await page.wait_selector('[data-testid="item-delete"]');
             await page.click('[data-testid="item-delete"]');
+            await page.wait_selector('[data-testid="delete-dialog-confirm"]');
+            await sleep(500); // the dialog animates in; a click during the animation is lost
             await page.click('[data-testid="delete-dialog-confirm"]');
             await page.wait_selector('[data-sonner-toast]');
             await page.shot("tost-vydaleno", "Викладач: після видалення предмета внизу з'являється повідомлення «Предмет видалено» з кнопкою «Скасувати».", { toast: true });
@@ -864,6 +875,9 @@ async function main() {
                 await page.click('[data-testid="release"]');
                 await page.click('[data-testid="tab-hidden"]');
                 await page.wait_selector('[data-testid="hidden-note"]');
+                await sleep(1000);
+                await page.type_line("id", '[data-testid="teacher-terminal"]');
+                await wait_for(async () => (await page.evaluate(`document.querySelector('[data-testid="teacher-terminal"] .xterm-rows')?.innerText ?? ""`)).includes("uid=0"), 80, 250, "the hidden shell to answer");
                 await page.shot("prykhovanyi-terminal", "Викладач: прихований термінал студента, окрема оболонка root, яку студент не бачить, для перевірок і налаштування.");
             } finally {
                 await student.close();
