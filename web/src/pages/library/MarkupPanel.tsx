@@ -40,7 +40,7 @@ function placeText(mark: LessonMark, times: ArrayLike<number>): string {
 export function MarkupPanel({ items, times, text, openFrom, error, ready, dirty, saving, actions }: MarkupPanelProps) {
   const marks = sortedMarks(items);
   return (
-    <aside data-testid="markup-panel" className="flex min-h-0 w-80 shrink-0 flex-col gap-2">
+    <aside data-testid="markup-panel" className="flex min-h-0 w-full shrink-0 flex-col gap-2 lg:w-80">
       <h2 className="text-base font-semibold">Розмітка уроку</h2>
       <textarea
         className={`${CONTROL_CLASS} min-h-16`}

@@ -242,7 +242,7 @@ function StudentsBody({
     return <StudentTiles students={students} room={room} classId={classId} assignmentId={assignmentId} machine={machine} maxGrade={maxGrade} />;
   }
   return (
-    <div className="flex gap-6 px-6 py-5">
+    <div className="flex flex-col gap-6 px-4 py-5 sm:px-6 lg:flex-row">
       <StudentTable students={students} room={room} classId={classId} assignmentId={assignmentId} machine={machine} maxGrade={maxGrade} now={now} />
       <ClassAside students={students} others={others} classId={classId} assignmentId={assignmentId} now={now} onPick={onPick} />
     </div>

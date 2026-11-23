@@ -11,8 +11,63 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { describeError } from "@/lib/api";
 import { formatWhen } from "@/lib/format";
 import { apiQuery } from "@/lib/query";
+import type { LibraryItemSummary } from "@shared/api";
 import { CreateItemDialog } from "./CreateItemDialog";
 import { assignedClasses, filterItems, KIND_FILTERS, KIND_LABEL, type KindFilter } from "./library-list";
+
+/** A table on a wide screen, cards on a narrow one. */
+function LibraryList({ items }: { items: readonly LibraryItemSummary[] }) {
+  return (
+    <>
+      <div className="hidden rounded-lg border bg-card md:block">
+        <Table data-testid="library-table">
+          <TableHeader>
+            <TableRow>
+              <TableHead>Вид</TableHead>
+              <TableHead>Назва</TableHead>
+              <TableHead>Машини</TableHead>
+              <TableHead>Видано</TableHead>
+              <TableHead className="text-right">Змінено</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {items.map((item) => (
+              <TableRow key={item.id} data-testid="library-row" data-kind={item.kind}>
+                <TableCell>
+                  <Badge variant="secondary">{KIND_LABEL[item.kind]}</Badge>
+                </TableCell>
+                <TableCell>
+                  <Link to={`/library/${item.id}`} data-testid="library-open" className="font-medium text-primary hover:underline">
+                    {item.title}
+                  </Link>
+                </TableCell>
+                <TableCell>{item.machines}</TableCell>
+                <TableCell className="whitespace-normal text-muted-foreground">{assignedClasses(item).join(", ") || "-"}</TableCell>
+                <TableCell className="text-right text-muted-foreground">{formatWhen(item.updated_at)}</TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </div>
+      <ul className="divide-y rounded-lg border bg-card md:hidden">
+        {items.map((item) => (
+          <li key={item.id} data-testid="library-card" data-kind={item.kind} className="flex flex-col gap-1 px-3 py-2.5">
+            <div className="flex items-center gap-2">
+              <Badge variant="secondary">{KIND_LABEL[item.kind]}</Badge>
+              <Link to={`/library/${item.id}`} className="min-w-0 font-medium text-primary hover:underline">
+                {item.title}
+              </Link>
+            </div>
+            <p className="text-[13px] text-muted-foreground">
+              Машини: {item.machines} · змінено {formatWhen(item.updated_at)}
+            </p>
+            <p className="text-[13px] text-muted-foreground">Видано: {assignedClasses(item).join(", ") || "-"}</p>
+          </li>
+        ))}
+      </ul>
+    </>
+  );
+}
 
 /** "/library": the teacher's tasks, lessons and clips. */
 export function LibraryPage() {
@@ -49,41 +104,12 @@ export function LibraryPage() {
           <EmptyState title="Нічого не знайдено" hint="Змініть вид або пошуковий запит." />
         </div>
       ) : (
-        <div className="rounded-lg border bg-card">
-          <Table data-testid="library-table">
-            <TableHeader>
-              <TableRow>
-                <TableHead>Вид</TableHead>
-                <TableHead>Назва</TableHead>
-                <TableHead>Машини</TableHead>
-                <TableHead>Видано</TableHead>
-                <TableHead className="text-right">Змінено</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {shown.map((item) => (
-                <TableRow key={item.id} data-testid="library-row" data-kind={item.kind}>
-                  <TableCell>
-                    <Badge variant="secondary">{KIND_LABEL[item.kind]}</Badge>
-                  </TableCell>
-                  <TableCell>
-                    <Link to={`/library/${item.id}`} data-testid="library-open" className="font-medium text-primary hover:underline">
-                      {item.title}
-                    </Link>
-                  </TableCell>
-                  <TableCell>{item.machines}</TableCell>
-                  <TableCell className="whitespace-normal text-muted-foreground">{assignedClasses(item).join(", ") || "-"}</TableCell>
-                  <TableCell className="text-right text-muted-foreground">{formatWhen(item.updated_at)}</TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </div>
+        <LibraryList items={shown} />
       );
   }
 
   return (
-    <div className="mx-auto flex max-w-5xl flex-col gap-4 px-6 py-6" data-testid="library-page">
+    <div className="mx-auto flex max-w-5xl flex-col gap-4 px-4 sm:px-6 py-6" data-testid="library-page">
       <div className="flex items-center gap-3">
         <h1 className="font-display text-[26px] leading-tight font-bold">Бібліотека</h1>
         <Button className="ml-auto" onClick={() => setCreating(true)} data-testid="create-item">

@@ -13,10 +13,10 @@ export function HintsEditor({ rows, onChange }: { rows: HintRow[]; onChange: (ro
     <div className="flex flex-col gap-3" data-testid="hints-editor">
       {rows.length === 0 && <p className="text-sm text-muted-foreground">Підказок ще немає.</p>}
       {rows.map((row, index) => (
-        <div key={index} data-testid="hint-row" className="flex items-start gap-2">
+        <div key={index} data-testid="hint-row" className="flex flex-wrap items-start gap-2">
           <span className="w-5 pt-1.5 text-sm text-muted-foreground">{index + 1}.</span>
           <textarea
-            className={`${CONTROL_CLASS} min-h-16 flex-1`}
+            className={`${CONTROL_CLASS} min-h-16 min-w-0 flex-1 max-sm:basis-[calc(100%-1.75rem)]`}
             aria-label={`Текст підказки ${index + 1}`}
             data-testid="hint-text"
             maxLength={MAX_TEXT_CHARS}

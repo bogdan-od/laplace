@@ -23,7 +23,7 @@ export function SettingsPage() {
   const me = useMe();
   if (!me.data) return null;
   return (
-    <div className="mx-auto flex max-w-xl flex-col gap-5 px-6 py-6">
+    <div className="mx-auto flex max-w-xl flex-col gap-5 px-4 sm:px-6 py-6">
       <header className="flex flex-col gap-1">
         <h1 className="font-display text-[26px] leading-tight font-bold">Налаштування</h1>
         <p className="text-sm text-muted-foreground">

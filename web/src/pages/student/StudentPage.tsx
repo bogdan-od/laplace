@@ -131,7 +131,7 @@ function StudentScreen({ classId, assignment, student, room }: StudentScreenProp
     });
 
   return (
-    <div data-testid="student-page" data-student={student.user_id} className="flex flex-col gap-4 px-6 py-5">
+    <div data-testid="student-page" data-student={student.user_id} className="flex flex-col gap-4 px-4 sm:px-6 py-5">
       <StudentHeader classId={classId} assignmentId={assignment.id} assignmentTitle={assignment.title} student={student} />
       {attemptId === null ? (
         <div data-testid="not-started" className="max-w-xl rounded-lg border bg-card p-5">

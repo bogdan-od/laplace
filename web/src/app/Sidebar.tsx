@@ -4,6 +4,7 @@ import { BookOpen, CalendarDays, CircleAlert, Inbox, ListChecks, Plus, Settings 
 import { NavLink } from "react-router";
 import { apiQuery } from "@/lib/query";
 import { classStatus, type ClassCounter } from "@/lib/class-status";
+import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
 import type { ClassSummary, Role } from "@shared/api";
 import { CreateClassDialog } from "./CreateClassDialog";
@@ -99,11 +100,11 @@ function ClassList({ classes }: { classes: ClassSummary[] | undefined }) {
   );
 }
 
-export function Sidebar({ role }: { role: Role }) {
+function MenuItems({ role }: { role: Role }) {
   const classes = useQuery({ ...apiQuery("GET /api/classes"), enabled: role === "teacher" });
   const waiting = (classes.data ?? []).reduce((sum, c) => sum + c.to_review + c.open_help, 0);
   return (
-    <nav className="flex w-60 shrink-0 flex-col gap-5 overflow-y-auto border-r bg-card px-3 py-4">
+    <>
       {role === "teacher" ? (
         <>
           <div className="flex flex-col gap-0.5">
@@ -121,6 +122,36 @@ export function Sidebar({ role }: { role: Role }) {
       <div className="mt-auto">
         <MenuLink to="/settings" icon={Settings} label="Налаштування" />
       </div>
+    </>
+  );
+}
+
+/** The menu beside the page; below the `lg` breakpoint the same items sit in the drawer. */
+export function Sidebar({ role }: { role: Role }) {
+  return (
+    <nav className="hidden w-60 shrink-0 flex-col gap-5 overflow-y-auto border-r bg-card px-3 py-4 lg:flex">
+      <MenuItems role={role} />
     </nav>
+  );
+}
+
+/** The menu of a narrow screen: slides in from the left over the page. */
+export function SidebarDrawer({ role, open, onOpenChange }: { role: Role; open: boolean; onOpenChange: (open: boolean) => void }) {
+  return (
+    <Sheet open={open} onOpenChange={onOpenChange}>
+      <SheetContent side="left" aria-describedby={undefined} className="bg-card">
+        <div className="flex h-11 shrink-0 items-center border-b px-3">
+          <SheetTitle>Меню</SheetTitle>
+        </div>
+        <nav
+          className="flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto px-3 py-4"
+          onClick={(event) => {
+            if (event.target instanceof Element && event.target.closest("a") !== null) onOpenChange(false);
+          }}
+        >
+          <MenuItems role={role} />
+        </nav>
+      </SheetContent>
+    </Sheet>
   );
 }

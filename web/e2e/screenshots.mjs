@@ -25,7 +25,7 @@ const BASE = `http://127.0.0.1:${PORT}`;
 const OUT = out_dir("screenshots-shots");
 const CAPTIONS = join(OUT, "captions.md");
 const FAIL_OUT = out_dir("screenshots-fail");
-const WIDTH = 1440;
+const WIDTH = Number(process.env.E2E_WIDTH ?? 1440);
 const HEIGHT = 900;
 const SCALE = 1.25;
 const BOOT_TRIES = 480; // x 250 ms = 2 minutes for a machine to boot in the browser

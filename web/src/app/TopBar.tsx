@@ -1,4 +1,4 @@
-import { LogOut, PanelLeft, Search } from "lucide-react";
+import { LogOut, Menu, PanelLeft, Search } from "lucide-react";
 import { Link, NavLink } from "react-router";
 import { useLogout } from "@/lib/session";
 import { cn } from "@/lib/utils";
@@ -21,21 +21,22 @@ export function TopBar({
   const { logout, pending } = useLogout();
   const teacher = me.role === "teacher";
   return (
-    <header className="flex h-11 shrink-0 items-center gap-4 border-b bg-card px-3">
+    <header className="flex h-11 shrink-0 items-center gap-3 border-b bg-card px-3 md:gap-4">
       <button
         type="button"
         onClick={onToggleNav}
         title={navOpen ? "Сховати меню" : "Показати меню"}
         className="inline-flex size-7 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground"
       >
-        <PanelLeft className="size-4" />
+        <PanelLeft className="hidden size-4 lg:block" />
+        <Menu className="size-4 lg:hidden" />
       </button>
       <Link to="/" className="inline-flex items-center gap-2 font-display text-[17px] font-bold">
         <img src="/favicon.svg" alt="" className="size-[22px]" />
         Laplace
       </Link>
       {!navOpen && (
-        <nav className="ml-2 flex gap-4 text-sm text-muted-foreground">
+        <nav className="ml-2 hidden gap-4 text-sm text-muted-foreground lg:flex">
           {teacher ? (
             <>
               <NavLink to="/review" className={topLink}>
@@ -60,15 +61,16 @@ export function TopBar({
           <button
             type="button"
             onClick={onOpenSearch}
-            className="flex h-7 w-56 items-center gap-2 rounded-md border bg-background px-2 text-sm whitespace-nowrap text-muted-foreground hover:text-foreground"
+            title="Пошук"
+            className="flex h-7 w-7 items-center justify-center gap-2 rounded-md border bg-background text-sm whitespace-nowrap text-muted-foreground hover:text-foreground md:w-56 md:justify-start md:px-2"
           >
             <Search className="size-3.5" />
-            Пошук
-            <kbd className="ml-auto text-[12px]">Ctrl+K</kbd>
+            <span className="hidden md:inline">Пошук</span>
+            <kbd className="ml-auto hidden text-[12px] md:inline">Ctrl+K</kbd>
           </button>
         )}
         <NotificationsBell role={me.role} />
-        <Link to="/settings" title="Налаштування" className="text-sm hover:underline">
+        <Link to="/settings" title="Налаштування" className="hidden text-sm hover:underline md:inline">
           {me.name}
         </Link>
         <button

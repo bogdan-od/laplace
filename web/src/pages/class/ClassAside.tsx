@@ -23,7 +23,7 @@ function HelpCard({ student, href, now }: { student: StudentProgress; href: stri
         <span className="text-[13px] text-muted-foreground">{agoText(help.created_at, now)}</span>
       </div>
       <p className="text-[13px]">{help.text}</p>
-      <div className="flex gap-2">
+      <div className="flex flex-wrap gap-2">
         <Button size="sm" variant="outline" asChild>
           <Link to={href}>
             <History /> Переглянути момент
@@ -54,7 +54,7 @@ export function ClassAside({
 }) {
   const asking = students.filter((student) => student.open_help);
   return (
-    <aside data-testid="class-aside" className="flex w-80 shrink-0 flex-col gap-6">
+    <aside data-testid="class-aside" className="flex w-full flex-col gap-6 lg:w-80 lg:shrink-0">
       <section className="flex flex-col gap-2">
         <h2 className="text-sm font-semibold">Просять допомоги <span className="ml-2 font-normal text-muted-foreground">{asking.length}</span></h2>
         {asking.map((student) => (

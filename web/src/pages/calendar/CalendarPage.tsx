@@ -26,11 +26,11 @@ import {
   type Month,
 } from "./calendar-grid";
 
-function EntryLink({ entry }: { entry: CalendarEntry }) {
+function EntryLink({ entry, testId = "calendar-entry" }: { entry: CalendarEntry; testId?: string }) {
   return (
     <Link
       to={`/classes/${entry.class_id}?a=${entry.assignment_id}`}
-      data-testid="calendar-entry"
+      data-testid={testId}
       data-assignment={entry.assignment_id}
       className="flex flex-col rounded-md border bg-background px-2 py-1 text-[13px] hover:bg-muted"
     >
@@ -76,6 +76,26 @@ function DayCell({ day, entries, today, expanded, onToggle }: DayCellProps) {
   );
 }
 
+const AGENDA_DAY = new Intl.DateTimeFormat("uk", { weekday: "long", day: "numeric", month: "long" });
+
+/** The month on a narrow screen: the days that have due dates, one under another. */
+function Agenda({ weeks, byDay }: { weeks: readonly (readonly Day[])[]; byDay: ReadonlyMap<string, readonly CalendarEntry[]> }) {
+  const days = weeks.flat().filter((day) => day.inMonth && (byDay.get(day.key)?.length ?? 0) > 0);
+  if (days.length === 0) return <p className="rounded-lg border bg-card px-3 py-4 text-sm text-muted-foreground md:hidden">Термінів у цьому місяці немає</p>;
+  return (
+    <div data-testid="calendar-agenda" className="flex flex-col gap-3 md:hidden">
+      {days.map((day) => (
+        <section key={day.key} className="flex flex-col gap-1.5 rounded-lg border bg-card p-2.5">
+          <h2 className="text-sm font-medium first-letter:uppercase">{AGENDA_DAY.format(day.date)}</h2>
+          {(byDay.get(day.key) ?? []).map((entry) => (
+            <EntryLink key={entry.assignment_id} entry={entry} testId="calendar-agenda-entry" />
+          ))}
+        </section>
+      ))}
+    </div>
+  );
+}
+
 /** "/calendar": the due dates of my classes by month, Monday first. */
 export function CalendarPage() {
   const [search, setSearch] = useSearchParams();
@@ -97,7 +117,7 @@ export function CalendarPage() {
     });
 
   return (
-    <div className="mx-auto flex max-w-6xl flex-col gap-4 px-6 py-6" data-testid="calendar-page">
+    <div className="mx-auto flex max-w-6xl flex-col gap-4 px-4 sm:px-6 py-6" data-testid="calendar-page">
       <div className="flex flex-wrap items-center gap-3">
         <h1 className="font-display text-[26px] leading-tight font-bold">Календар</h1>
         <Button variant="outline" size="icon" aria-label="Попередній місяць" data-testid="calendar-prev" onClick={() => go(shiftMonth(month, -1))}>
@@ -124,7 +144,8 @@ export function CalendarPage() {
           action={<Button variant="outline" onClick={() => void entries.refetch()}>Спробувати знову</Button>}
         />
       )}
-      <div className="grid grid-cols-7 gap-px overflow-hidden rounded-lg border bg-border" data-testid="calendar-grid">
+      <Agenda weeks={weeks} byDay={byDay} />
+      <div className="hidden grid-cols-7 gap-px overflow-hidden rounded-lg border bg-border md:grid" data-testid="calendar-grid">
         {weekdayNames().map((name) => (
           <div key={name} className="bg-muted px-2 py-1.5 text-[13px] font-medium text-muted-foreground">
             {name}

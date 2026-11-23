@@ -65,6 +65,18 @@ export function MachineTerminal({ runtime, view, className, shrinkToFit = false 
       element.dataset.font = String(terminal.options.fontSize);
     };
     refit();
+    // The browser scrolls the terminal sideways to the typing caret and leaves it there; keep the view at the left
+    // edge unless the cursor is out of sight, then bring it back.
+    const followCursor = () => {
+      const screen = element.querySelector<HTMLElement>(".xterm-screen");
+      if (!screen) return;
+      const cell = screen.clientWidth / GUEST_COLS;
+      const left = terminal.buffer.active.cursorX * cell;
+      const right = left + cell;
+      if (left < element.scrollLeft) element.scrollLeft = left < element.clientWidth ? 0 : left;
+      else if (right > element.scrollLeft + element.clientWidth) element.scrollLeft = right - element.clientWidth;
+    };
+    const parsed = terminal.onWriteParsed(followCursor);
     const observer = new ResizeObserver(refit);
     observer.observe(element);
 
@@ -78,6 +90,7 @@ export function MachineTerminal({ runtime, view, className, shrinkToFit = false 
     return () => {
       offOutput();
       input.dispose();
+      parsed.dispose();
       observer.disconnect();
       terminal.dispose();
       term.current = null;

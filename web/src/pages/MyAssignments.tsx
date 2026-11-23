@@ -58,65 +58,96 @@ export function MyAssignmentsPage() {
   }
 
   return (
-    <div className="mx-auto flex max-w-5xl flex-col gap-4 px-6 py-6">
+    <div className="mx-auto flex max-w-5xl flex-col gap-4 px-4 sm:px-6 py-6">
       {heading}
       {body}
     </div>
   );
 }
 
+/** The row of the table on a narrow screen: the same fields, one card per assignment. */
+function AssignmentCard({ item, now }: { item: MyAssignment; now: number }) {
+  return (
+    <li data-testid="assignment-card" data-assignment={item.id} className="flex flex-col gap-1 px-3 py-2.5">
+      <div className="flex items-baseline gap-2">
+        <Link to={`/assignments/${item.id}`} className="min-w-0 font-medium hover:underline">
+          {item.title}
+        </Link>
+        <span className="ml-auto shrink-0 tabular-nums">{item.my_grade === null ? "-" : `${item.my_grade} з ${item.max_grade}`}</span>
+      </div>
+      <p className="text-[13px] text-muted-foreground">
+        {item.class_name} · {KIND_TEXT[item.kind]}
+      </p>
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
+        <StatusLabel status={item.my_status ?? "idle"} kind={item.kind} />
+        {item.frozen && <span className="font-medium text-status-work">Призупинено</span>}
+        <span className={cn("ml-auto tabular-nums", isOverdue(item, now) ? "text-status-stuck" : "text-muted-foreground")}>
+          {item.due_at === null ? "Без строку" : formatDue(item.due_at, now)}
+        </span>
+      </div>
+    </li>
+  );
+}
+
 export function AssignmentTable({ items, now }: { items: MyAssignment[]; now: number }) {
   const navigate = useNavigate();
   return (
-    <div className="rounded-lg border bg-card">
-      <Table data-testid="my-assignments">
-        <TableHeader>
-          <TableRow>
-            <TableHead>Назва</TableHead>
-            <TableHead>Клас</TableHead>
-            <TableHead>Вид</TableHead>
-            <TableHead>Строк</TableHead>
-            <TableHead>Статус</TableHead>
-            <TableHead className="text-right">Оцінка</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {items.map((item) => (
-            <TableRow
-              key={item.id}
-              data-testid="assignment-row"
-              data-assignment={item.id}
-              className="cursor-pointer"
-              onClick={() => void navigate(`/assignments/${item.id}`)}
-            >
-              <TableCell className="font-medium">
-                <Link to={`/assignments/${item.id}`} onClick={(event) => event.stopPropagation()} className="hover:underline">
-                  {item.title}
-                </Link>
-              </TableCell>
-              <TableCell>{item.class_name}</TableCell>
-              <TableCell>{KIND_TEXT[item.kind]}</TableCell>
-              <TableCell className={cn("tabular-nums", isOverdue(item, now) && "text-status-stuck")}>
-                {item.due_at === null ? "Без строку" : formatDue(item.due_at, now)}
-              </TableCell>
-              <TableCell>
-                <span className="inline-flex flex-wrap items-center gap-x-3 gap-y-1">
-                  <StatusLabel status={item.my_status ?? "idle"} kind={item.kind} />
-                  {item.frozen && (
-                    <span data-testid="frozen-mark" className="font-medium text-status-work">
-                      Призупинено
-                    </span>
-                  )}
-                </span>
-              </TableCell>
-              <TableCell className="text-right tabular-nums">
-                {item.my_grade === null ? "-" : `${item.my_grade} з ${item.max_grade}`}
-              </TableCell>
+    <>
+      <ul className="divide-y rounded-lg border bg-card md:hidden">
+        {items.map((item) => (
+          <AssignmentCard key={item.id} item={item} now={now} />
+        ))}
+      </ul>
+      <div className="hidden rounded-lg border bg-card md:block">
+        <Table data-testid="my-assignments">
+          <TableHeader>
+            <TableRow>
+              <TableHead>Назва</TableHead>
+              <TableHead>Клас</TableHead>
+              <TableHead>Вид</TableHead>
+              <TableHead>Строк</TableHead>
+              <TableHead>Статус</TableHead>
+              <TableHead className="text-right">Оцінка</TableHead>
             </TableRow>
-          ))}
-        </TableBody>
-      </Table>
-    </div>
+          </TableHeader>
+          <TableBody>
+            {items.map((item) => (
+              <TableRow
+                key={item.id}
+                data-testid="assignment-row"
+                data-assignment={item.id}
+                className="cursor-pointer"
+                onClick={() => void navigate(`/assignments/${item.id}`)}
+              >
+                <TableCell className="font-medium">
+                  <Link to={`/assignments/${item.id}`} onClick={(event) => event.stopPropagation()} className="hover:underline">
+                    {item.title}
+                  </Link>
+                </TableCell>
+                <TableCell>{item.class_name}</TableCell>
+                <TableCell>{KIND_TEXT[item.kind]}</TableCell>
+                <TableCell className={cn("tabular-nums", isOverdue(item, now) && "text-status-stuck")}>
+                  {item.due_at === null ? "Без строку" : formatDue(item.due_at, now)}
+                </TableCell>
+                <TableCell>
+                  <span className="inline-flex flex-wrap items-center gap-x-3 gap-y-1">
+                    <StatusLabel status={item.my_status ?? "idle"} kind={item.kind} />
+                    {item.frozen && (
+                      <span data-testid="frozen-mark" className="font-medium text-status-work">
+                        Призупинено
+                      </span>
+                    )}
+                  </span>
+                </TableCell>
+                <TableCell className="text-right tabular-nums">
+                  {item.my_grade === null ? "-" : `${item.my_grade} з ${item.max_grade}`}
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </div>
+    </>
   );
 }
 

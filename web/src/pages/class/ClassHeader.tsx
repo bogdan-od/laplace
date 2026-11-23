@@ -107,7 +107,7 @@ function AssignmentInfo({
   actions: AssignmentActions;
 }) {
   return (
-    <div className="flex items-start gap-6">
+    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:gap-6">
       <div className="flex min-w-0 flex-col gap-1.5">
         <h1 data-testid="assignment-title" className="font-display text-[26px] leading-tight font-bold">
           {assignment.title}
@@ -124,7 +124,7 @@ function AssignmentInfo({
           )}
         </p>
       </div>
-      <div className="ml-auto flex shrink-0 flex-wrap justify-end gap-2">
+      <div className="flex flex-wrap gap-2 sm:ml-auto sm:shrink-0 sm:justify-end">
         <Button variant="outline" asChild>
           <Link to={`/assignments/${assignment.id}`} data-testid="try-as-student">
             <GraduationCap /> Спробувати як студент
@@ -160,7 +160,7 @@ function ViewToggle({ view, onChange }: { view: ClassView; onChange: (view: Clas
     </button>
   );
   return (
-    <div className="flex rounded-md border p-0.5 text-sm">
+    <div className="flex self-start rounded-md border p-0.5 text-sm sm:self-auto">
       {item("tiles", "Термінали", <LayoutGrid className="size-3.5" />)}
       {item("table", "Таблиця", <Rows3 className="size-3.5" />)}
       {item("analytics", "Аналітика", <ChartColumn className="size-3.5" />)}
@@ -198,7 +198,7 @@ export function ClassHeader({
   onView: (view: ClassView) => void;
 }) {
   return (
-    <div data-testid="class-header" className="flex flex-col gap-4 border-b bg-card px-6 pt-4 pb-4">
+    <div data-testid="class-header" className="flex flex-col gap-4 border-b bg-card px-4 sm:px-6 pt-4 pb-4">
       <InviteBar klass={klass} />
       <SectionTabs section={section} onSelect={onSection} />
       {section === "assignments" && (
@@ -207,7 +207,7 @@ export function ClassHeader({
       {section === "assignments" && selected && (
         <>
           <AssignmentInfo assignment={selected} brief={brief} online={online} total={students.length} actions={actions} />
-          <div className="flex items-end gap-6">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:gap-6">
             <div className="flex-1">
               <StatusSummary students={students} />
             </div>

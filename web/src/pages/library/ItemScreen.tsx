@@ -98,7 +98,7 @@ export function ItemScreen({ item }: { item: LibraryItem }) {
   };
 
   return (
-    <div className="mx-auto flex max-w-4xl flex-col gap-4 px-6 py-6" data-testid="item-page" data-item={item.id} data-kind={item.kind}>
+    <div className="mx-auto flex max-w-4xl flex-col gap-4 px-4 sm:px-6 py-6" data-testid="item-page" data-item={item.id} data-kind={item.kind}>
       <ItemHeader item={item} onItem={store} onAssign={() => setAssigning(true)} onPublish={() => setPublishing(true)} onDelete={() => setDeleting(true)} />
 
       {assigned !== null && (

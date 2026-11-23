@@ -1,12 +1,13 @@
 import { useEffect, useState, useSyncExternalStore } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { Outlet, useMatches } from "react-router";
+import { Outlet, useLocation, useMatches } from "react-router";
 import { Button } from "@/components/ui/button";
 import { socket } from "@/lib/live";
+import { useIsDesktop } from "@/lib/use-media-query";
 import type { Me } from "@shared/api";
 import { useNavOpen, type PageKind } from "./nav-state";
 import { SearchDialog } from "./SearchDialog";
-import { Sidebar } from "./Sidebar";
+import { Sidebar, SidebarDrawer } from "./Sidebar";
 import { TopBar } from "./TopBar";
 
 export interface RouteHandle {
@@ -51,6 +52,11 @@ export function Shell({ me }: { me: Me }) {
   const bare = useBare();
   const [navOpen, setNavOpen] = useNavOpen(kind);
   const [searching, setSearching] = useState(false);
+  const desktop = useIsDesktop();
+  // The drawer covers the page: it is open for the address it was opened on, so any navigation puts it away.
+  const [drawerAt, setDrawerAt] = useState<string | null>(null);
+  const { pathname } = useLocation();
+  const drawerOpen = drawerAt === pathname;
   const queryClient = useQueryClient();
 
   useEffect(() => {
@@ -83,13 +89,21 @@ export function Shell({ me }: { me: Me }) {
   return (
     <div className="flex h-screen flex-col bg-background">
       <ReplacedBanner />
-      {!bare && <TopBar me={me} navOpen={navOpen} onToggleNav={() => setNavOpen(!navOpen)} onOpenSearch={() => setSearching(true)} />}
+      {!bare && (
+        <TopBar
+          me={me}
+          navOpen={desktop ? navOpen : drawerOpen}
+          onToggleNav={() => (desktop ? setNavOpen(!navOpen) : setDrawerAt(drawerOpen ? null : pathname))}
+          onOpenSearch={() => setSearching(true)}
+        />
+      )}
       <div className="flex min-h-0 flex-1">
         {navOpen && !bare && <Sidebar role={me.role} />}
         <main className="min-w-0 flex-1 overflow-y-auto">
           <Outlet />
         </main>
       </div>
+      {!bare && <SidebarDrawer role={me.role} open={drawerOpen && !desktop} onOpenChange={(open) => setDrawerAt(open ? pathname : null)} />}
       {me.role === "teacher" && <SearchDialog open={searching} onOpenChange={setSearching} />}
     </div>
   );

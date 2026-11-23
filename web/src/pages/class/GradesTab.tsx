@@ -7,7 +7,11 @@ import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { describeError } from "@/lib/api";
 import { apiQuery } from "@/lib/query";
+import { cn } from "@/lib/utils";
 import { buildGradesTable, type GradeCell } from "./grades-table";
+
+/** On a phone the name stays in view while the grades scroll sideways. */
+const STICKY_NAME = "max-sm:sticky max-sm:left-0 max-sm:max-w-36 max-sm:truncate max-sm:border-r max-sm:bg-card";
 
 function Cell({ cell, maxGrade }: { cell: GradeCell; maxGrade: number }) {
   if (cell.kind === "graded") {
@@ -45,7 +49,7 @@ export function GradesTab({ classId, assignments }: { classId: number; assignmen
     return <EmptyState title="У класі ще немає завдань з оцінками" hint="Видайте завдання, і тут з'явиться таблиця оцінок." />;
   }
   return (
-    <div className="flex flex-col gap-4 px-6 py-5" data-testid="grades-tab">
+    <div className="flex flex-col gap-4 px-4 sm:px-6 py-5" data-testid="grades-tab">
       <div className="flex items-center gap-2">
         <h2 className="font-display text-lg font-bold">Оцінки</h2>
         <span className="ml-auto">{exportButton}</span>
@@ -60,8 +64,8 @@ export function GradesTab({ classId, assignments }: { classId: number; assignmen
           <Table>
             <TableHeader>
               <TableRow className="hover:bg-transparent">
-                <TableHead className="w-14 text-right">№</TableHead>
-                <TableHead>ПІБ</TableHead>
+                <TableHead className="hidden w-14 text-right sm:table-cell">№</TableHead>
+                <TableHead className={STICKY_NAME}>ПІБ</TableHead>
                 {tasks.map((task) => (
                   <TableHead key={task.id} className="max-w-48 text-right">
                     <div className="truncate" title={task.title}>
@@ -74,8 +78,8 @@ export function GradesTab({ classId, assignments }: { classId: number; assignmen
             <TableBody>
               {rows.map((row) => (
                 <TableRow key={row.userId} data-testid="grade-row" data-student={row.userId}>
-                  <TableCell className="text-right tabular-nums text-muted-foreground">{row.number}</TableCell>
-                  <TableCell className="font-medium">{row.name}</TableCell>
+                  <TableCell className="hidden text-right tabular-nums text-muted-foreground sm:table-cell">{row.number}</TableCell>
+                  <TableCell className={cn(STICKY_NAME, "font-medium")}>{row.name}</TableCell>
                   {tasks.map((task, column) => {
                     const cell = row.cells[column] ?? { kind: "none" as const };
                     return (

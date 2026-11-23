@@ -52,6 +52,55 @@ function Sub({ student, now }: { student: StudentProgress; now: number }) {
   return <> </>;
 }
 
+/** The row of the table on a narrow screen: the same fields, one card per student. */
+function StudentCard({
+  student,
+  href,
+  room,
+  machine,
+  maxGrade,
+  now,
+}: {
+  student: StudentProgress;
+  href: string;
+  room: TeacherRoomSnapshot;
+  machine: string;
+  maxGrade: number;
+  now: number;
+}) {
+  const facts = [
+    student.started_at === null ? null : `початок ${formatClock(student.started_at)}`,
+    workMinutes(student) ? `${workMinutes(student)} хв` : null,
+    student.commands ? `команд ${student.commands}` : null,
+    student.rollbacks ? `відкатів ${student.rollbacks}` : null,
+  ].filter((fact) => fact !== null);
+  return (
+    <li
+      data-testid="student-card"
+      data-student={student.user_id}
+      data-status={student.status}
+      className={cn("flex flex-col gap-1 px-3 py-2.5", student.status === "stuck" && "bg-status-stuck/5")}
+    >
+      <div className="flex items-baseline gap-2">
+        <Link to={href} className="min-w-0 truncate font-medium hover:underline">
+          {student.name}
+        </Link>
+        <span className="ml-auto shrink-0">
+          <Grade student={student} maxGrade={maxGrade} href={href} />
+        </span>
+      </div>
+      <div className="flex items-baseline gap-2 text-[13px]">
+        <StudentStatus status={student.status} />
+        <span className="text-muted-foreground">
+          <Sub student={student} now={now} />
+        </span>
+      </div>
+      <Caption student={student} room={room} machine={machine} />
+      {facts.length > 0 && <p className="text-[13px] text-muted-foreground tabular-nums">{facts.join(" · ")}</p>}
+    </li>
+  );
+}
+
 export function StudentTable({
   students,
   room,
@@ -71,57 +120,72 @@ export function StudentTable({
 }) {
   const navigate = useNavigate();
   return (
-    <div data-testid="student-table" className="min-w-0 flex-1 rounded-lg border bg-card">
-      <Table>
-        <TableHeader>
-          <TableRow className="hover:bg-transparent">
-            <TableHead>Студент</TableHead>
-            <TableHead className="w-36">Стан</TableHead>
-            <TableHead className="w-20 text-right">Початок</TableHead>
-            <TableHead className="w-20 text-right">Час, хв</TableHead>
-            <TableHead className="w-20 text-right">Команд</TableHead>
-            <TableHead className="w-20 text-right">Відкатів</TableHead>
-            <TableHead className="w-24 text-right">Оцінка</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {sortStudents(students).map((student) => {
-            const href = studentHref(classId, assignmentId, student);
-            return (
-              <TableRow
-                key={student.user_id}
-                data-testid="student-row"
-                data-student={student.user_id}
-                data-status={student.status}
-                onClick={() => void navigate(href)}
-                className={cn("cursor-pointer", student.status === "stuck" && "bg-status-stuck/5")}
-              >
-                <TableCell className="max-w-0 align-top">
-                  <Link to={href} className="font-medium hover:underline">
-                    {student.name}
-                  </Link>
-                  <Caption student={student} room={room} machine={machine} />
-                </TableCell>
-                <TableCell className="align-top">
-                  <StudentStatus status={student.status} />
-                  <div className="text-[13px] text-muted-foreground">
-                    <Sub student={student} now={now} />
-                  </div>
-                </TableCell>
-                <TableCell className="text-right align-top tabular-nums">
-                  {student.started_at === null ? "-" : formatClock(student.started_at)}
-                </TableCell>
-                <TableCell className="text-right align-top tabular-nums">{workMinutes(student) || "-"}</TableCell>
-                <TableCell className="text-right align-top tabular-nums">{student.commands || "-"}</TableCell>
-                <TableCell className="text-right align-top tabular-nums">{student.rollbacks || "-"}</TableCell>
-                <TableCell className="text-right align-top">
-                  <Grade student={student} maxGrade={maxGrade} href={href} />
-                </TableCell>
-              </TableRow>
-            );
-          })}
-        </TableBody>
-      </Table>
+    <div className="flex min-w-0 flex-1 flex-col">
+      <ul data-testid="student-cards" className="divide-y rounded-lg border bg-card md:hidden">
+        {sortStudents(students).map((student) => (
+          <StudentCard
+            key={student.user_id}
+            student={student}
+            href={studentHref(classId, assignmentId, student)}
+            room={room}
+            machine={machine}
+            maxGrade={maxGrade}
+            now={now}
+          />
+        ))}
+      </ul>
+      <div data-testid="student-table" className="hidden flex-1 rounded-lg border bg-card md:block">
+        <Table>
+          <TableHeader>
+            <TableRow className="hover:bg-transparent">
+              <TableHead>Студент</TableHead>
+              <TableHead className="w-36">Стан</TableHead>
+              <TableHead className="w-20 text-right">Початок</TableHead>
+              <TableHead className="w-20 text-right">Час, хв</TableHead>
+              <TableHead className="w-20 text-right">Команд</TableHead>
+              <TableHead className="w-20 text-right">Відкатів</TableHead>
+              <TableHead className="w-24 text-right">Оцінка</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {sortStudents(students).map((student) => {
+              const href = studentHref(classId, assignmentId, student);
+              return (
+                <TableRow
+                  key={student.user_id}
+                  data-testid="student-row"
+                  data-student={student.user_id}
+                  data-status={student.status}
+                  onClick={() => void navigate(href)}
+                  className={cn("cursor-pointer", student.status === "stuck" && "bg-status-stuck/5")}
+                >
+                  <TableCell className="max-w-0 align-top">
+                    <Link to={href} className="font-medium hover:underline">
+                      {student.name}
+                    </Link>
+                    <Caption student={student} room={room} machine={machine} />
+                  </TableCell>
+                  <TableCell className="align-top">
+                    <StudentStatus status={student.status} />
+                    <div className="text-[13px] text-muted-foreground">
+                      <Sub student={student} now={now} />
+                    </div>
+                  </TableCell>
+                  <TableCell className="text-right align-top tabular-nums">
+                    {student.started_at === null ? "-" : formatClock(student.started_at)}
+                  </TableCell>
+                  <TableCell className="text-right align-top tabular-nums">{workMinutes(student) || "-"}</TableCell>
+                  <TableCell className="text-right align-top tabular-nums">{student.commands || "-"}</TableCell>
+                  <TableCell className="text-right align-top tabular-nums">{student.rollbacks || "-"}</TableCell>
+                  <TableCell className="text-right align-top">
+                    <Grade student={student} maxGrade={maxGrade} href={href} />
+                  </TableCell>
+                </TableRow>
+              );
+            })}
+          </TableBody>
+        </Table>
+      </div>
     </div>
   );
 }

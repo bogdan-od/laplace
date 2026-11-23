@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { describeError } from "@/lib/api";
 import { invalidateRoute, meQuery } from "@/lib/query";
+import { useIsDesktop } from "@/lib/use-media-query";
 import { MachineTerminal } from "@/machine/MachineTerminal";
 import { EMPTY_CLIP_RANGE, type ClipRange } from "@/machine/clip";
 import { chooseFork, type ForkChoice } from "@/machine/continue-from";
@@ -47,7 +48,7 @@ export function BackButton() {
 
 function PlayerCard({ title, hint, back = true }: { title: string; hint?: string; back?: boolean }) {
   return (
-    <div data-testid="player-card" className="flex flex-col gap-4 px-6 py-5">
+    <div data-testid="player-card" className="flex flex-col gap-4 px-4 py-5 sm:px-6">
       {back && (
         <header>
           <BackButton />
@@ -168,7 +169,7 @@ function CommentForm({ session, disabled }: { session: PlayerSession | null; dis
   }
   return (
     <form
-      className="flex items-center gap-2"
+      className="flex flex-wrap items-center gap-2"
       onSubmit={(event) => {
         event.preventDefault();
         void save();
@@ -179,7 +180,7 @@ function CommentForm({ session, disabled }: { session: PlayerSession | null; dis
         data-testid="comment-text"
         aria-label="Текст коментаря"
         placeholder="Коментар до цього моменту"
-        className="h-8 w-72"
+        className="h-8 w-72 max-w-full"
         value={text}
         onChange={(event) => setText(event.target.value)}
       />
@@ -222,6 +223,8 @@ export function PlayerScreen({ text, source, layout = "page", ownsPage = true, s
   // A visitor of a published player is not logged in: nobody to ask.
   const me = useQuery({ ...meQuery(), enabled: layout !== "embed" }).data ?? null;
   const page = layout === "page";
+  // A narrow screen keeps the font and scrolls the terminal sideways; only a pane beside another one shrinks it.
+  const desktop = useIsDesktop();
   const { forking, fork } = useFork(session, view);
   const [clipping, setClipping] = useState(false);
   const [clipRange, setClipRange] = useState<ClipRange>(EMPTY_CLIP_RANGE);
@@ -272,7 +275,7 @@ export function PlayerScreen({ text, source, layout = "page", ownsPage = true, s
       data-position={view.position}
       data-speed={view.speed}
       data-layout={layout}
-      className={cn("flex h-full flex-col gap-3", layout === "pane" ? "px-1 py-1" : "px-6 py-4")}
+      className={cn("flex flex-col gap-3", layout === "pane" ? "px-1 py-1 lg:h-full" : "min-h-full px-4 py-4 sm:px-6 lg:h-full")}
     >
       <header className="flex flex-wrap items-center gap-x-4 gap-y-2">
         {page && <BackButton />}
@@ -334,9 +337,14 @@ export function PlayerScreen({ text, source, layout = "page", ownsPage = true, s
       ) : (
         <>
           {clipping && <ClipBar session={session} view={view} range={clipRange} onRange={setClipRange} onClose={closeClip} />}
-          <div className={cn("flex min-h-0 flex-1", layout === "pane" ? "flex-col gap-2" : "gap-4")}>
+          <div className={cn("flex min-h-0 flex-1", layout === "pane" ? "flex-col gap-2" : "flex-col gap-4 lg:flex-row")}>
             <div className={cn("flex min-h-0 flex-col gap-2", layout === "pane" ? "flex-1" : "shrink-0")}>
-              <MachineTerminal runtime={runtime} view={view.machine} className="min-h-0 flex-1" shrinkToFit={layout === "pane"} />
+              <MachineTerminal
+                runtime={runtime}
+                view={view.machine}
+                className="min-h-0 flex-1 max-lg:h-[26rem] max-lg:flex-none"
+                shrinkToFit={layout === "pane" && desktop}
+              />
               {view.notice !== null && (
                 <p data-testid="player-notice" className="text-sm text-status-stuck">
                   {view.notice}
@@ -344,7 +352,7 @@ export function PlayerScreen({ text, source, layout = "page", ownsPage = true, s
               )}
             </div>
             <CommandList
-              className={layout === "pane" ? "h-44 flex-none" : undefined}
+              className={layout === "pane" ? "h-44 flex-none" : "max-lg:h-80 max-lg:flex-none"}
               marks={view.marks}
               current={view.current}
               onPick={(mark) => void session?.goToMark(mark)}

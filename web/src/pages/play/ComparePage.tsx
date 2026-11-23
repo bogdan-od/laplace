@@ -26,12 +26,12 @@ export function ComparePage() {
     return <EmptyState title="Невідомі записи для порівняння" hint="Адреса має вигляд /compare?a=…&b=…" />;
   }
   return (
-    <div data-testid="compare" className="flex h-full flex-col gap-2 px-6 py-3">
-      <header className="flex items-center gap-3">
+    <div data-testid="compare" className="flex min-h-full flex-col gap-2 px-4 py-3 sm:px-6 lg:h-full">
+      <header className="flex flex-wrap items-center gap-3">
         <BackButton />
         <h1 className="font-display text-[22px] leading-tight font-bold">Порівняння з еталоном</h1>
       </header>
-      <div className="grid min-h-0 flex-1 grid-cols-2 gap-4">
+      <div className="grid min-h-0 grid-cols-1 lg:flex-1 gap-4 lg:grid-cols-2">
         <div data-testid="compare-left" className="min-h-0 min-w-0">
           <PlayerScreen key={left.text} text={left.text} source={left.source} layout="pane" />
         </div>

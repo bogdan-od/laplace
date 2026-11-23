@@ -7,7 +7,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { api, describeError } from "@/lib/api";
 import { formatWhen } from "@/lib/format";
 import { queryKey } from "@/lib/query";
-import { describeActivity } from "./activity-text";
+import { describeActivity, type ActivityLine } from "./activity-text";
 
 /** The server answers with at most this many rows; a shorter page is the last one. */
 const PAGE_SIZE = 50;
@@ -16,6 +16,29 @@ const FIRST_PAGE = 0;
 
 function nextPage(page: readonly Activity[]): number | undefined {
   return page.length < PAGE_SIZE ? undefined : page.at(-1)?.id;
+}
+
+/** The row of the table on a narrow screen: the same fields, one card per entry. */
+function ActivityCard({ activity, line, now }: { activity: Activity; line: ActivityLine; now: number }) {
+  return (
+    <li data-testid="activity-card" data-kind={activity.kind} className="flex flex-col gap-0.5 px-3 py-2.5">
+      <div className="flex items-baseline gap-2">
+        <span className="min-w-0 truncate font-medium">{activity.actor.name}</span>
+        <span className="ml-auto shrink-0 text-[13px] text-muted-foreground tabular-nums">{formatWhen(activity.at, now)}</span>
+      </div>
+      <p>
+        {line.action}
+        {line.note && <span className="text-muted-foreground"> · {line.note}</span>}
+      </p>
+      {(line.student || line.assignment) && (
+        <p className="text-[13px] text-muted-foreground">
+          {line.student}
+          {line.student && line.assignment && " · "}
+          {line.assignment}
+        </p>
+      )}
+    </li>
+  );
 }
 
 export function ActivityTab({ klass, now }: { klass: ClassDetail; now: number }) {
@@ -39,8 +62,8 @@ export function ActivityTab({ klass, now }: { klass: ClassDetail; now: number })
   const titleOf = (id: number) => klass.assignments.find((assignment) => assignment.id === id)?.title;
 
   return (
-    <div className="flex flex-col gap-4 px-6 py-5" data-testid="activity-tab">
-      <div className="rounded-lg border bg-card">
+    <div className="flex flex-col gap-4 px-4 sm:px-6 py-5" data-testid="activity-tab">
+      <div className="hidden rounded-lg border bg-card md:block">
         <Table>
           <TableHeader>
             <TableRow className="hover:bg-transparent">
@@ -70,6 +93,11 @@ export function ActivityTab({ klass, now }: { klass: ClassDetail; now: number })
           </TableBody>
         </Table>
       </div>
+      <ul className="divide-y rounded-lg border bg-card md:hidden">
+        {rows.map((activity) => (
+          <ActivityCard key={activity.id} activity={activity} line={describeActivity(activity, titleOf)} now={now} />
+        ))}
+      </ul>
       {log.hasNextPage && (
         <PendingButton variant="outline" pending={log.isFetchingNextPage} onClick={() => void log.fetchNextPage()} className="self-center" data-testid="activity-more">
           Показати ще

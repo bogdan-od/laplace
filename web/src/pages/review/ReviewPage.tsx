@@ -37,9 +37,31 @@ function SubmissionState({ submission }: { submission: SubmissionSummary }) {
   );
 }
 
-function ReviewRow({ item, now }: { item: ReviewItem; now: number }) {
+/** The link to the work of the item: a page for a submission, the moment of the request for a help request. */
+function OpenLink({ item }: { item: ReviewItem }) {
   const { opening, open } = useHelpMoment();
   const target = reviewTarget(item);
+  if (target.kind === "page") {
+    return (
+      <Link to={target.href} data-testid="review-open" className={OPEN_LINK}>
+        {item.assignment.title}
+      </Link>
+    );
+  }
+  return (
+    <button
+      type="button"
+      data-testid="review-open"
+      disabled={opening === target.help.id}
+      onClick={() => void open(target.help, true)}
+      className={OPEN_LINK}
+    >
+      {item.assignment.title}
+    </button>
+  );
+}
+
+function ReviewRow({ item, now }: { item: ReviewItem; now: number }) {
   const at = reviewAt(item);
   return (
     <TableRow data-testid="review-row" data-kind={item.kind} data-key={reviewKey(item)}>
@@ -48,21 +70,7 @@ function ReviewRow({ item, now }: { item: ReviewItem; now: number }) {
       </TableCell>
       <TableCell>{reviewStudentName(item)}</TableCell>
       <TableCell className="whitespace-normal">
-        {target.kind === "page" ? (
-          <Link to={target.href} data-testid="review-open" className={OPEN_LINK}>
-            {item.assignment.title}
-          </Link>
-        ) : (
-          <button
-            type="button"
-            data-testid="review-open"
-            disabled={opening === target.help.id}
-            onClick={() => void open(target.help, true)}
-            className={OPEN_LINK}
-          >
-            {item.assignment.title}
-          </button>
-        )}
+        <OpenLink item={item} />
       </TableCell>
       <TableCell>{item.class.name}</TableCell>
       <TableCell className="whitespace-nowrap text-muted-foreground" title={formatWhen(at, now)}>
@@ -76,6 +84,63 @@ function ReviewRow({ item, now }: { item: ReviewItem; now: number }) {
         )}
       </TableCell>
     </TableRow>
+  );
+}
+
+/** The row of the table on a narrow screen: the same fields and the same link, one card per item. */
+function ReviewCard({ item, now }: { item: ReviewItem; now: number }) {
+  const at = reviewAt(item);
+  return (
+    <li data-testid="review-card" data-kind={item.kind} data-key={reviewKey(item)} className="flex flex-col gap-1.5 px-3 py-3">
+      <div className="flex items-center gap-2">
+        <Badge variant={item.kind === "help" ? "destructive" : "secondary"}>{REVIEW_KIND_LABEL[item.kind]}</Badge>
+        <span className="min-w-0 truncate font-medium">{reviewStudentName(item)}</span>
+        <span className="ml-auto shrink-0 text-sm whitespace-nowrap text-muted-foreground" title={formatWhen(at, now)}>
+          {reviewWhen(at, now)}
+        </span>
+      </div>
+      <div className="flex flex-wrap items-baseline gap-x-2">
+        <OpenLink item={item} />
+        <span className="text-sm text-muted-foreground">{item.class.name}</span>
+      </div>
+      {item.kind === "submission" ? (
+        <SubmissionState submission={item.submission} />
+      ) : (
+        <span className="line-clamp-2 text-sm text-muted-foreground">{item.help.text}</span>
+      )}
+    </li>
+  );
+}
+
+/** A table on a wide screen, cards on a narrow one. */
+function ReviewList({ shown, now }: { shown: readonly ReviewItem[]; now: number }) {
+  return (
+    <>
+      <div className="hidden rounded-lg border bg-card md:block">
+        <Table data-testid="review-table">
+          <TableHeader>
+            <TableRow>
+              <TableHead>Вид</TableHead>
+              <TableHead>Студент</TableHead>
+              <TableHead>Завдання</TableHead>
+              <TableHead>Клас</TableHead>
+              <TableHead>Коли</TableHead>
+              <TableHead>Стан</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {shown.map((item) => (
+              <ReviewRow key={reviewKey(item)} item={item} now={now} />
+            ))}
+          </TableBody>
+        </Table>
+      </div>
+      <ul className="divide-y rounded-lg border bg-card md:hidden">
+        {shown.map((item) => (
+          <ReviewCard key={reviewKey(item)} item={item} now={now} />
+        ))}
+      </ul>
+    </>
   );
 }
 
@@ -140,32 +205,14 @@ export function ReviewPage() {
             <EmptyState title="Нічого не знайдено" hint="Змініть вид або клас." />
           </div>
         ) : (
-          <div className="rounded-lg border bg-card">
-            <Table data-testid="review-table">
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Вид</TableHead>
-                  <TableHead>Студент</TableHead>
-                  <TableHead>Завдання</TableHead>
-                  <TableHead>Клас</TableHead>
-                  <TableHead>Коли</TableHead>
-                  <TableHead>Стан</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {shown.map((item) => (
-                  <ReviewRow key={reviewKey(item)} item={item} now={now} />
-                ))}
-              </TableBody>
-            </Table>
-          </div>
+          <ReviewList shown={shown} now={now} />
         )}
       </>
     );
   }
 
   return (
-    <div className="mx-auto flex max-w-5xl flex-col gap-4 px-6 py-6" data-testid="review-page">
+    <div className="mx-auto flex max-w-5xl flex-col gap-4 px-4 sm:px-6 py-6" data-testid="review-page">
       <h1 className="font-display text-[26px] leading-tight font-bold">На перевірку</h1>
       {body}
     </div>

@@ -51,6 +51,50 @@ function GradeBars({ analytics, maxGrade }: { analytics: Analytics; maxGrade: nu
   );
 }
 
+type StudentStats = Analytics["per_student"][number];
+
+const studentHref = (classId: number, assignmentId: number, userId: number) => `/classes/${classId}/assignments/${assignmentId}/students/${userId}`;
+
+function IdleNames({ students, classId, assignmentId }: { students: readonly StudentStats[]; classId: number; assignmentId: number }) {
+  return students.map((student, index) => (
+    <span key={student.user_id}>
+      {index > 0 && ", "}
+      <Link to={studentHref(classId, assignmentId, student.user_id)} className="hover:underline">
+        {student.name}
+      </Link>
+    </span>
+  ));
+}
+
+/** The row of the table on a narrow screen: the same figures, labelled. */
+function AnalyticsCard({ student, href }: { student: StudentStats; href: string }) {
+  const figures: [string, string][] = [
+    ["До здачі", minutesText(student.minutes_to_submit)],
+    ["Команд", numberText(student.commands)],
+    ["Відкатів", numberText(student.rollbacks)],
+    ["\"Не працює\"", numberText(student.help_requests)],
+    ["Підказок", numberText(student.hints_used)],
+  ];
+  return (
+    <li data-testid="an-card" data-student={student.user_id} className="flex flex-col gap-1.5 px-3 py-2.5">
+      <div className="flex items-baseline gap-2">
+        <Link to={href} className="min-w-0 truncate font-medium hover:underline">
+          {student.name}
+        </Link>
+        <span className="ml-auto shrink-0 font-semibold tabular-nums">{numberText(student.grade)}</span>
+      </div>
+      <dl className="flex flex-wrap gap-x-4 gap-y-0.5 text-[13px]">
+        {figures.map(([label, value]) => (
+          <div key={label} className="flex gap-1.5">
+            <dt className="text-muted-foreground">{label}</dt>
+            <dd className="tabular-nums">{value}</dd>
+          </div>
+        ))}
+      </dl>
+    </li>
+  );
+}
+
 export function AnalyticsView({
   classId,
   assignmentId,
@@ -72,15 +116,25 @@ export function AnalyticsView({
   const { worked, idle } = splitStudents(data.per_student, idleIds);
 
   return (
-    <div className="flex flex-col gap-5 px-6 py-5" data-testid="analytics-view">
-      <div className="grid grid-cols-4 gap-4">
+    <div className="flex flex-col gap-5 px-4 sm:px-6 py-5" data-testid="analytics-view">
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
         <Figure label="Відкрили завдання" value={`${data.opened} з ${data.students}`} testId="an-opened" />
         <Figure label="Здали" value={`${data.submitted} з ${data.students}`} testId="an-submitted" />
         <Figure label="Медіана часу до здачі" value={minutesText(spread.median)} testId="an-median" />
         <Figure label="Розкид часу до здачі" value={spreadText(spread)} testId="an-spread" />
       </div>
-      <div className="flex items-start gap-6">
-        <div className="min-w-0 flex-1 rounded-lg border bg-card">
+      <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:gap-6">
+        <ul data-testid="an-cards" className="divide-y rounded-lg border bg-card md:hidden">
+          {worked.map((student) => (
+            <AnalyticsCard key={student.user_id} student={student} href={studentHref(classId, assignmentId, student.user_id)} />
+          ))}
+          {idle.length > 0 && (
+            <li className="px-3 py-2.5 text-sm text-muted-foreground">
+              Не почали: <IdleNames students={idle} classId={classId} assignmentId={assignmentId} />
+            </li>
+          )}
+        </ul>
+        <div className="hidden min-w-0 flex-1 rounded-lg border bg-card md:block">
           <Table>
             <TableHeader>
               <TableRow className="hover:bg-transparent">
@@ -112,21 +166,14 @@ export function AnalyticsView({
               {idle.length > 0 && (
                 <TableRow data-testid="an-idle" className="hover:bg-transparent">
                   <TableCell colSpan={7} className="whitespace-normal text-muted-foreground">
-                    Не почали: {idle.map((student, index) => (
-                      <span key={student.user_id}>
-                        {index > 0 && ", "}
-                        <Link to={`/classes/${classId}/assignments/${assignmentId}/students/${student.user_id}`} className="hover:underline">
-                          {student.name}
-                        </Link>
-                      </span>
-                    ))}
+                    Не почали: <IdleNames students={idle} classId={classId} assignmentId={assignmentId} />
                   </TableCell>
                 </TableRow>
               )}
             </TableBody>
           </Table>
         </div>
-        <div className="w-96 shrink-0">
+        <div className="w-full lg:w-96 lg:shrink-0">
           <GradeBars analytics={data} maxGrade={maxGrade} />
         </div>
       </div>

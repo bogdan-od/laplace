@@ -88,7 +88,7 @@ export function AssignmentPicker({
       }}
     >
       <PopoverTrigger asChild>
-        <Button variant="outline" data-testid="assignment-picker" className="min-w-0 max-w-xl justify-start">
+        <Button variant="outline" data-testid="assignment-picker" className="min-w-0 max-w-xl shrink justify-start">
           <span className="text-muted-foreground">Завдання:</span>
           <span data-testid="assignment-picker-title" className="truncate">{selected.title}</span>
           <ChevronDown className="ml-auto" />

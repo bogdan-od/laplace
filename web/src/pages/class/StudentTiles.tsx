@@ -124,7 +124,7 @@ export function StudentTiles({
   return (
     <div
       data-testid="student-tiles"
-      className="grid grid-cols-[repeat(auto-fill,minmax(240px,1fr))] gap-3 px-6 py-4"
+      className="grid grid-cols-[repeat(auto-fill,minmax(240px,1fr))] gap-3 px-4 sm:px-6 py-4"
     >
       {sortStudents(students).map((student) => (
         <Tile
