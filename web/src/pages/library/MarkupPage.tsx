@@ -133,7 +133,7 @@ function Marking({ item, node, journal }: { item: LibraryItem; node: string; jou
         text={`item-${item.id}-${node}-start`}
         source={source}
         spans={spans}
-        side={({ session, view }) => (
+        side={({ session, view, beside }) => (
           <MarkupPanel
             items={items}
             times={times}
@@ -143,6 +143,7 @@ function Marking({ item, node, journal }: { item: LibraryItem; node: string; jou
             ready={view.phase === "ready" && !view.seeking}
             dirty={dirty}
             saving={saving}
+            beside={beside}
             actions={{
               onText: setText,
               onNote: () => accept(addNote(items, view.eventCount, text, total)),

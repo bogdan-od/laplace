@@ -20,6 +20,7 @@ import { cn } from "@/lib/utils";
 import { ClipBar } from "./ClipBar";
 import { CommandList } from "./CommandList";
 import { Timeline, type TimelineSpan } from "./Timeline";
+import { usePlayerColumns } from "./use-player-columns";
 
 const SPEEDS: readonly { speed: PlayerSpeed; label: string; id: string }[] = [
   { speed: 1, label: "1×", id: "1" },
@@ -208,8 +209,8 @@ export interface PlayerScreenProps {
   layout?: PlayerLayout;
   /** The keys, `?t=` and `?reply=` of the address belong to this player (not to its neighbour in the compare screen). */
   ownsPage?: boolean;
-  /** A panel to the right of the command list (the markup of a lesson). */
-  side?: (context: { session: PlayerSession | null; view: PlayerView }) => ReactNode;
+  /** A panel to the right of the command list (the markup of a lesson); `beside` is false when there is no room and it goes below the player. */
+  side?: (context: { session: PlayerSession | null; view: PlayerView; beside: boolean }) => ReactNode;
   /** Marks of the panel on the timeline. */
   spans?: readonly TimelineSpan[];
 }
@@ -225,6 +226,9 @@ export function PlayerScreen({ text, source, layout = "page", ownsPage = true, s
   const page = layout === "page";
   // A narrow screen keeps the font and scrolls the terminal sideways; only a pane beside another one shrinks it.
   const desktop = useIsDesktop();
+  const [row, setRow] = useState<HTMLDivElement | null>(null);
+  const [terminalColumn, setTerminalColumn] = useState<HTMLDivElement | null>(null);
+  const columns = usePlayerColumns(row, terminalColumn);
   const { forking, fork } = useFork(session, view);
   const [clipping, setClipping] = useState(false);
   const [clipRange, setClipRange] = useState<ClipRange>(EMPTY_CLIP_RANGE);
@@ -264,6 +268,11 @@ export function PlayerScreen({ text, source, layout = "page", ownsPage = true, s
 
   if (view.phase === "failed") return <PlayerCard back={page} title="Не вдалося відкрити запис" hint={view.error ?? undefined} />;
   const runtime = session?.runtime() ?? null;
+  // Below `lg` the layout is a column by CSS alone; above it the columns are dropped as soon as the terminal leaves too little room.
+  const stacked = layout !== "pane" && !columns.listBeside;
+  const sideBelow = desktop && layout !== "pane" && !columns.sideBeside;
+  const flow = stacked || (side !== undefined && sideBelow);
+  const sidePanel = side?.({ session, view, beside: !sideBelow });
 
   return (
     <div
@@ -275,7 +284,10 @@ export function PlayerScreen({ text, source, layout = "page", ownsPage = true, s
       data-position={view.position}
       data-speed={view.speed}
       data-layout={layout}
-      className={cn("flex flex-col gap-3", layout === "pane" ? "px-1 py-1 lg:h-full" : "min-h-full px-4 py-4 sm:px-6 lg:h-full")}
+      className={cn(
+        "flex flex-col gap-3",
+        layout === "pane" ? "px-1 py-1 lg:h-full" : cn("min-h-full px-4 py-4 sm:px-6", !flow && "lg:h-full"),
+      )}
     >
       <header className="flex flex-wrap items-center gap-x-4 gap-y-2">
         {page && <BackButton />}
@@ -337,12 +349,12 @@ export function PlayerScreen({ text, source, layout = "page", ownsPage = true, s
       ) : (
         <>
           {clipping && <ClipBar session={session} view={view} range={clipRange} onRange={setClipRange} onClose={closeClip} />}
-          <div className={cn("flex min-h-0 flex-1", layout === "pane" ? "flex-col gap-2" : "flex-col gap-4 lg:flex-row")}>
-            <div className={cn("flex min-h-0 flex-col gap-2", layout === "pane" ? "flex-1" : "shrink-0")}>
+          <div ref={setRow} className={cn("flex min-h-0 flex-1", layout === "pane" ? "flex-col gap-2" : cn("flex-col gap-4", !stacked && "lg:flex-row"))}>
+            <div ref={setTerminalColumn} className={cn("flex min-h-0 flex-col gap-2", layout === "pane" ? "flex-1" : "shrink-0")}>
               <MachineTerminal
                 runtime={runtime}
                 view={view.machine}
-                className="min-h-0 flex-1 max-lg:h-[26rem] max-lg:flex-none"
+                className={cn("min-h-0 flex-1 max-lg:h-[26rem] max-lg:flex-none", flow && "lg:h-[34rem] lg:flex-none")}
                 shrinkToFit={layout === "pane" && desktop}
               />
               {view.notice !== null && (
@@ -352,7 +364,7 @@ export function PlayerScreen({ text, source, layout = "page", ownsPage = true, s
               )}
             </div>
             <CommandList
-              className={layout === "pane" ? "h-44 flex-none" : "max-lg:h-80 max-lg:flex-none"}
+              className={layout === "pane" ? "h-44 flex-none" : cn("max-lg:h-80 max-lg:flex-none", stacked && "lg:h-80 lg:flex-none")}
               marks={view.marks}
               current={view.current}
               onPick={(mark) => void session?.goToMark(mark)}
@@ -363,7 +375,7 @@ export function PlayerScreen({ text, source, layout = "page", ownsPage = true, s
                   }
                 : {})}
             />
-            {side?.({ session, view })}
+            {!sideBelow && sidePanel}
           </div>
           <div className="flex items-start gap-3">
             <Button
@@ -387,6 +399,7 @@ export function PlayerScreen({ text, source, layout = "page", ownsPage = true, s
               />
             </div>
           </div>
+          {sideBelow && sidePanel}
         </>
       )}
     </div>

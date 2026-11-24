@@ -747,7 +747,8 @@ async function main() {
             await as_teacher();
             await page.open(`${BASE}/library/${item_lesson}/preview`);
             await page.wait_selector('[data-testid="preview-badge"]');
-            await wait_for(async () => (await page.text_of('[data-testid="lesson-note"]')).trim().length > 0, BOOT_TRIES, 250, "the lesson note");
+            // The lesson stops at the "Тепер сам" task and waits for the student: the first explanations have run by then, `ls /` has printed.
+            await wait_for(async () => (await page.exists('[data-testid="lesson-task"]')) && (await page.console_lines()).some(line => /\bbin\b.*\bfstab\b/.test(line)), BOOT_TRIES, 250, "the task block and the output of ls /");
             await page.shot("pereglianuty-yak-student", "Викладач: «Переглянути як студент», екран уроку такий самий, як у студента, але нічого не зберігається й не зараховується.");
         });
         await step(35, "library: published lesson", async () => {

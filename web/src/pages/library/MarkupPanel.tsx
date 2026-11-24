@@ -2,6 +2,7 @@ import { X } from "lucide-react";
 import type { LessonMark } from "@core/core/journal.mjs";
 import { PendingButton } from "@/components/PendingButton";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 import { formatGuestTime } from "@/machine/player-marks";
 import { CONTROL_CLASS } from "./controls";
 import { placeOf, sortedMarks, startOf } from "./lesson-markup";
@@ -28,6 +29,8 @@ export interface MarkupPanelProps {
   ready: boolean;
   dirty: boolean;
   saving: boolean;
+  /** To the right of the list (a fixed width) or below the player (the whole width). */
+  beside: boolean;
   actions: MarkupActions;
 }
 
@@ -36,11 +39,11 @@ function placeText(mark: LessonMark, times: ArrayLike<number>): string {
   return mark.t === "self" ? `${from}-${formatGuestTime(placeOf(times, mark.to))}` : from;
 }
 
-/** To the right of the command list: the text field, the three buttons, the marks in order, the save button. */
-export function MarkupPanel({ items, times, text, openFrom, error, ready, dirty, saving, actions }: MarkupPanelProps) {
+/** The text field, the three buttons, the marks in order, the save button. */
+export function MarkupPanel({ items, times, text, openFrom, error, ready, dirty, saving, beside, actions }: MarkupPanelProps) {
   const marks = sortedMarks(items);
   return (
-    <aside data-testid="markup-panel" className="flex min-h-0 w-full shrink-0 flex-col gap-2 lg:w-80">
+    <aside data-testid="markup-panel" className={cn("flex min-h-0 w-full shrink-0 flex-col gap-2", beside && "lg:w-80")}>
       <h2 className="text-base font-semibold">Розмітка уроку</h2>
       <textarea
         className={`${CONTROL_CLASS} min-h-16`}
